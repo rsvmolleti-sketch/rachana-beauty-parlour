@@ -703,13 +703,12 @@
 
       let authUser = null;
       let sessionToken = null;
-      let authErrorMessage = '';
 
       // Direct Supabase Auth via signInWithPassword
       if (supabaseClient) {
         const candidateEmails = [
+          rawPhone.includes('@') ? rawPhone : `${phone}@gmail.com`,
           rawPhone.includes('@') ? rawPhone : `${phone}@rachanabeauty.com`,
-          rawPhone.includes('@') ? rawPhone : `${phone}@rachana.com`,
         ];
 
         let signInSuccess = false;
@@ -732,20 +731,6 @@
           } catch (e) {
             lastErr = e;
           }
-        }
-
-        if (!signInSuccess && !rawPhone.includes('@')) {
-          try {
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-              phone: `+91${phone}`,
-              password: rawPassword,
-            });
-            if (!error && data?.user) {
-              authUser = data.user;
-              sessionToken = data.session?.access_token;
-              signInSuccess = true;
-            }
-          } catch (_) {}
         }
 
         if (!signInSuccess) {
@@ -777,6 +762,7 @@
         phone_e164: `+91 ${phone}`,
         address_line1: '',
         pincode: '500039',
+        is_active: true,
       };
 
       try {
@@ -818,7 +804,7 @@
         throw new Error('Password must be at least 6 characters.');
       }
 
-      const authEmail = `${phone}@rachanabeauty.com`;
+      const authEmail = `${phone}@gmail.com`;
       let authUserId = null;
       let sessionToken = null;
 
@@ -877,6 +863,7 @@
         phone_e164: `+91${phone}`,
         address_line1: addressLine1,
         pincode: parsedBody.pincode || '500039',
+        is_active: true,
         created_at: new Date().toISOString(),
       };
 
@@ -888,16 +875,23 @@
 
       // Persist directly to Supabase Cloud profiles table
       try {
-        const supaRes = await mutateSupabase('profiles', 'POST', {
-          id: authUserId && isValidUUID(authUserId) ? authUserId : undefined,
-          phone: phone,
-          phone_e164: `+91${phone}`,
-          full_name: fullName,
-          address_line1: addressLine1,
-          pincode: profile.pincode,
-          password_hash: passwordHash,
-          salt: salt,
-        });
+        const supaRes = await mutateSupabase(
+          'profiles',
+          'POST',
+          {
+            id: authUserId && isValidUUID(authUserId) ? authUserId : undefined,
+            phone: phone,
+            phone_e164: `+91${phone}`,
+            full_name: fullName,
+            address_line1: addressLine1,
+            pincode: profile.pincode,
+            password_hash: passwordHash,
+            salt: salt,
+            is_active: true,
+          },
+          '?on_conflict=phone',
+          'resolution=merge-duplicates,return=representation'
+        );
         const createdProf = Array.isArray(supaRes) ? supaRes[0] : supaRes;
         if (createdProf && createdProf.id && !createdProf.code) {
           profile.id = createdProf.id;
@@ -937,6 +931,7 @@
         phone_e164: `+91 ${phone}`,
         address_line1: '',
         pincode: '500039',
+        is_active: true,
       };
       setStoredCustomer(profile);
       const token = `cust-${phone}-${Date.now()}`;
@@ -1006,29 +1001,37 @@
         slots: slotsWithAvailability,
       };
     }
+
     if (url.startsWith('/api/appointments')) {
       const srv = (state.services || []).find((s) => s.id === parsedBody.serviceId);
       const bookingDate = parsedBody.appointmentDate || parsedBody.date || getTodayDateString();
       const bookingTime = parsedBody.appointmentTime || parsedBody.time || '11:00:00';
-      const custName = parsedBody.customerName || (state.profile ? state.profile.full_name : 'Valued Customer');
-      const custPhone = parsedBody.customerPhone || (state.profile ? state.profile.phone : '8074968435');
+      const custName = (parsedBody.customerName || (state.profile ? state.profile.full_name : 'Valued Customer')).trim();
+      const rawCustPhone = (parsedBody.customerPhone || (state.profile ? state.profile.phone : '8074968435')).replace(/\D/g, '').slice(-10);
       const validServiceId = (parsedBody.serviceId && isValidUUID(parsedBody.serviceId)) ? parsedBody.serviceId : (srv?.id && isValidUUID(srv.id) ? srv.id : null);
       const bookingNotes = parsedBody.notes || '';
 
-      // Prepare payload with ONLY the required columns:
-      // customer_name, customer_phone, appointment_date, appointment_time, service_id, notes, status: 'pending'
-      // and user_id (only if logged in). Do NOT send service_price, duration_minutes, end_time or service_name (DB trigger sets them).
-      const supaPayload = {
-        customer_name: custName,
-        customer_phone: custPhone,
-        appointment_date: bookingDate,
-        appointment_time: bookingTime,
-        service_id: validServiceId,
-        notes: bookingNotes,
-        status: 'pending',
-      };
+      // Validate inputs
+      if (!/^[6-9]\d{9}$/.test(rawCustPhone)) {
+        throw new Error('Please enter a valid 10-digit mobile number for your booking.');
+      }
+      if (!validServiceId) {
+        throw new Error('Please select a valid service from the parlour menu.');
+      }
 
-      // Check if user has an active Supabase Auth session with a valid UUID
+      // Check double booking prevention on cloud
+      try {
+        const existingApts = await fetchFromSupabase('appointments', `?appointment_date=eq.${bookingDate}&appointment_time=eq.${encodeURIComponent(bookingTime)}&select=id`);
+        if (Array.isArray(existingApts) && existingApts.length > 0) {
+          throw new Error('This time slot is already booked. Please choose another 30-minute slot.');
+        }
+      } catch (checkErr) {
+        if (checkErr.message && checkErr.message.includes('already booked')) {
+          throw checkErr;
+        }
+      }
+
+      // Check for active Supabase Auth user ID
       let authUserId = null;
       if (supabaseClient) {
         try {
@@ -1039,16 +1042,51 @@
         } catch (_) {}
       }
 
-      if (authUserId) {
-        supaPayload.user_id = authUserId;
+      const targetUserId = authUserId || (state.profile?.id && isValidUUID(state.profile.id) ? state.profile.id : null);
+
+      // Ensure profile row exists in profiles table with is_active = true to satisfy DB trigger
+      if (targetUserId) {
+        try {
+          await mutateSupabase(
+            'profiles',
+            'POST',
+            {
+              id: targetUserId,
+              phone: rawCustPhone,
+              phone_e164: `+91${rawCustPhone}`,
+              full_name: custName,
+              is_active: true,
+            },
+            '?on_conflict=phone',
+            'resolution=merge-duplicates,return=representation'
+          );
+        } catch (_) {}
       }
 
-      // Save to Supabase Cloud - if user_id violates RLS (e.g. anon role or non-auth profile ID), retry seamlessly without user_id
+      // Prepare payload with ONLY the required columns:
+      // customer_name, customer_phone, appointment_date, appointment_time, service_id, notes, status: 'pending'
+      // and user_id (only if logged in). Do NOT send service_price, duration_minutes, end_time or service_name (DB trigger sets them).
+      const supaPayload = {
+        customer_name: custName,
+        customer_phone: rawCustPhone,
+        appointment_date: bookingDate,
+        appointment_time: bookingTime,
+        service_id: validServiceId,
+        notes: bookingNotes,
+        status: 'pending',
+      };
+
+      if (targetUserId) {
+        supaPayload.user_id = targetUserId;
+      }
+
+      // Save to Supabase Cloud - errors are thrown to the caller to display a friendly message & log console.error
       let supaRes;
       try {
         supaRes = await mutateSupabase('appointments', 'POST', supaPayload);
       } catch (insertErr) {
         if (supaPayload.user_id && (insertErr.status === 401 || insertErr.status === 403 || String(insertErr.message).includes('row-level security'))) {
+          // If RLS blocked with this user_id, retry without user_id
           delete supaPayload.user_id;
           supaRes = await mutateSupabase('appointments', 'POST', supaPayload);
         } else {
@@ -1063,7 +1101,7 @@
         appointment_date: bookingDate,
         appointment_time: bookingTime,
         customer_name: custName,
-        customer_phone: custPhone,
+        customer_phone: rawCustPhone,
         service_id: validServiceId,
         service_name: createdRow?.service_name || parsedBody.customServiceName || (srv ? srv.name : 'Salon Service'),
         service_price: createdRow?.service_price ?? (srv ? (srv.discount_price || srv.price) : 999),
