@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Rachana Beauty Parlour — Luxury Salon, Bridal Studio &amp; Beauty Boutique | Uppal, Hyderabad</title>
+  <meta name="description" content="Discover professional beauty, hair, skincare and bridal services at Rachana Beauty Parlour, Venkateswara Colony, Vijayapuri Colony, Uppal, Hyderabad." />
+  <link rel="icon" type="image/svg+xml" href="./assets/logo.svg" />
+  <link rel="alternate icon" type="image/svg+xml" href="./logo.svg" />
+  <!-- Luxury Typography matching reference site: Cormorant Garamond + Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css?v=20261002v2" />
+  <!-- Official Razorpay Checkout SDK -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
+</head>
+<body>
+  <!-- 1. COMPACT HEADER (Logo on Left, Desktop Nav in Center, Contact Us + Account on Right) -->
+  <header class="site-header" id="site-header">
+    <div class="header-inner">
+      <a href="#home" class="brand-logo-link" data-nav-target="home" aria-label="Rachana Beauty Parlour Home">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 140" fill="none" class="brand-logo-img" style="height:36px;width:auto;max-width:185px;">
+          <defs>
+            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#E6C994" />
+              <stop offset="50%" stop-color="#C9A66B" />
+              <stop offset="100%" stop-color="#9F7B42" />
+            </linearGradient>
+            <linearGradient id="wineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#5E172B" />
+              <stop offset="100%" stop-color="#380B18" />
+            </linearGradient>
+            <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#380B18" flood-opacity="0.18"/>
+            </filter>
+          </defs>
+          <g transform="translate(12, 12)" filter="url(#softGlow)">
+            <circle cx="58" cy="58" r="54" fill="url(#wineGrad)" stroke="url(#goldGrad)" stroke-width="2.2"/>
+            <circle cx="58" cy="58" r="48" fill="none" stroke="url(#goldGrad)" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.75"/>
+            <path d="M58 16 C61 24, 67 28, 58 34 C49 28, 55 24, 58 16 Z" fill="url(#goldGrad)" opacity="0.9"/>
+            <path d="M46 21 C50 26, 54 30, 53 34 C47 31, 45 27, 46 21 Z" fill="url(#goldGrad)" opacity="0.75"/>
+            <path d="M70 21 C66 26, 62 30, 63 34 C69 31, 71 27, 70 21 Z" fill="url(#goldGrad)" opacity="0.75"/>
+            <path d="M42 84 L42 40 L59 40 C68 40, 73 45, 73 52 C73 59, 67 63, 59 64 L75 84 L66 84 L52 65 L49 65 L49 84 Z M49 46 L49 59 L58 59 C63 59, 66 56.5, 66 52.5 C66 48.5, 63 46, 58 46 Z" fill="url(#goldGrad)"/>
+            <path d="M80 42 L82 47 L87 49 L82 51 L80 56 L78 51 L73 49 L78 47 Z" fill="#F6E3BA"/>
+            <path d="M34 91 Q58 102 82 91" stroke="url(#goldGrad)" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          </g>
+          <g transform="translate(142, 0)">
+            <text x="0" y="58" font-family="'Cormorant Garamond', 'Didot', 'Bodoni MT', Georgia, serif" font-size="42" font-weight="700" letter-spacing="4.5" fill="#4A1222">RACHANA</text>
+            <line x1="2" y1="72" x2="355" y2="72" stroke="url(#goldGrad)" stroke-width="1.2" opacity="0.8"/>
+            <text x="2" y="96" font-family="'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif" font-size="14.5" font-weight="600" letter-spacing="7.5" fill="#8C583A">BEAUTY PARLOUR</text>
+            <text x="3" y="118" font-family="'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif" font-size="10.5" font-weight="500" letter-spacing="3.2" fill="#7D6B6D">LUXURY SALON • BRIDAL STUDIO • BOUTIQUE</text>
+          </g>
+        </svg>
+      </a>
+
+      <!-- Desktop-only navigation matching the 5 tabs (hidden on mobile) -->
+      <nav class="desktop-top-nav" aria-label="Primary Navigation">
+        <button type="button" class="desktop-nav-btn active" data-nav-target="home">Home</button>
+        <button type="button" class="desktop-nav-btn" data-nav-target="services">Services</button>
+        <button type="button" class="desktop-nav-btn" data-nav-target="shop">
+          Shop
+          <span class="desktop-cart-pill" id="desktop-shop-badge" hidden>0</span>
+        </button>
+        <button type="button" class="desktop-nav-btn" data-nav-target="book">Book</button>
+        <button type="button" class="desktop-nav-btn" data-nav-target="about">About</button>
+        <button type="button" class="desktop-nav-btn" data-nav-target="account" id="desktop-nav-account-btn">Account</button>
+      </nav>
+
+      <!-- Header Action Buttons on Right: Contact Us + Account -->
+      <div class="header-actions">
+        <button type="button" class="header-action-btn" id="header-contact-btn" aria-label="Contact Us">
+          <svg class="header-action-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
+          <span class="header-action-label header-contact-label">Contact Us</span>
+        </button>
+
+        <button type="button" class="header-action-btn" id="header-account-btn" data-nav-target="account" aria-label="Customer Account">
+          <svg class="header-action-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span class="header-action-label" id="header-account-label">Account</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT ROOT -->
+  <main id="app-main" class="app-main">
+    <div id="view-container" class="view-container">
+      <div class="loading-state">Loading Rachana Beauty Parlour...</div>
+    </div>
+  </main>
+
+  <!-- FLOATING CONTACT BUTTONS (Compact WhatsApp + Call positioned cleanly above bottom nav) -->
+  <div class="floating-contact-dock" id="floating-contact-dock" aria-label="Quick Contact">
+    <div class="wa-quick-menu" id="wa-quick-menu" hidden>
+      <div class="wa-menu-header">
+        <span>WhatsApp (+91 80749 68435)</span>
+        <button type="button" class="wa-menu-close" id="wa-menu-close" aria-label="Close">&times;</button>
+      </div>
+      <a class="wa-menu-item" target="_blank" rel="noopener"
+         href="https://wa.me/918074968435?text=Hello%20Rachana%20Beauty%20Parlour%2C%20I%20would%20like%20to%20enquire%20about%20booking%20a%20salon%20appointment.">
+        Appointment Enquiry
+      </a>
+      <a class="wa-menu-item" target="_blank" rel="noopener"
+         href="https://wa.me/918074968435?text=Hello%20Rachana%20Beauty%20Parlour%2C%20I%20have%20a%20question%20regarding%20a%20beauty%20product%20from%20your%20shop.">
+        Product Enquiry
+      </a>
+      <a class="wa-menu-item" target="_blank" rel="noopener"
+         href="https://wa.me/918074968435?text=Hello%20Rachana%20Beauty%20Parlour%2C%20I%20have%20a%20general%20enquiry%20about%20your%20services%20and%20timings.">
+        General Enquiry
+      </a>
+    </div>
+
+    <button type="button" class="fab-contact-btn fab-whatsapp" id="fab-whatsapp-btn" aria-label="WhatsApp Enquiry">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">
+        <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm5.82 14.01c-.24.68-1.41 1.3-1.95 1.38-.5.08-1.13.11-1.82-.11-.42-.13-.96-.31-1.65-.61-2.91-1.26-4.81-4.2-4.96-4.39-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.59-.36.78-.36.2 0 .39 0 .56.01.18.01.42-.07.66.5.24.58.82 2.01.89 2.16.07.15.12.32.02.52-.1.2-.15.32-.29.49-.15.17-.31.38-.44.51-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.35 1.45.29.15.46.12.63-.07.17-.2.73-.85.92-1.14.2-.29.39-.24.66-.15.27.1 1.71.81 2 .95.29.15.49.22.56.34.07.12.07.7-.17 1.38z"/>
+      </svg>
+      <span>WhatsApp</span>
+    </button>
+
+    <a href="tel:+918074968435" class="fab-contact-btn fab-call" aria-label="Call Rachana Beauty Parlour">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92z"/>
+      </svg>
+      <span>Call</span>
+    </a>
+  </div>
+
+  <!-- SNACKBAR TOAST ("Added to Cart" / status notification above bottom bar) -->
+  <div id="cart-toast" class="cart-toast" role="status" aria-live="polite" hidden>
+    <span class="cart-toast-dot"></span>
+    <span id="cart-toast-text">Added to Cart</span>
+  </div>
+
+  <!-- COMPACT "VIEW CART" BAR (Appears above bottom nav when cart has items) -->
+  <div id="view-cart-bar" class="view-cart-bar" hidden>
+    <div class="view-cart-bar-left">
+      <span class="view-cart-count-pill" id="view-cart-bar-count">0 Items</span>
+      <span class="view-cart-total-text" id="view-cart-bar-total">₹0</span>
+    </div>
+    <button type="button" class="view-cart-open-btn" id="open-cart-drawer-btn">
+      <span>View Cart</span>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M13 5l7 7-7 7"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- FIXED MOBILE BOTTOM NAVIGATION (EXACTLY 5 ITEMS: Home, Services, Shop, Book, Account) -->
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Mobile Navigation">
+    <button type="button" class="bottom-nav-item active" data-nav-target="home">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 10.5L12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-9z"/>
+        <path d="M9 21V13h6v8"/>
+      </svg>
+      <span class="bottom-nav-label">Home</span>
+    </button>
+
+    <button type="button" class="bottom-nav-item" data-nav-target="services">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7-6-4.6h7.6z"/>
+      </svg>
+      <span class="bottom-nav-label">Services</span>
+    </button>
+
+    <button type="button" class="bottom-nav-item" data-nav-target="shop" id="bottom-nav-shop-btn">
+      <div class="nav-icon-badge-wrap" id="nav-shop-icon-wrap">
+        <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        <span class="nav-cart-badge" id="nav-shop-badge" hidden>0</span>
+      </div>
+      <span class="bottom-nav-label">Shop</span>
+    </button>
+
+    <button type="button" class="bottom-nav-item" data-nav-target="book">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span class="bottom-nav-label">Book</span>
+    </button>
+
+    <button type="button" class="bottom-nav-item" data-nav-target="about">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      <span class="bottom-nav-label">About</span>
+    </button>
+
+    <button type="button" class="bottom-nav-item" data-nav-target="account">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span class="bottom-nav-label" id="bottom-account-label">Account</span>
+    </button>
+  </nav>
+
+  <!-- CART & CHECKOUT DRAWER -->
+  <div id="cart-drawer-backdrop" class="drawer-backdrop" hidden>
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Shopping Cart and Checkout">
+      <div class="cart-drawer-header">
+        <div>
+          <h3 class="serif">Your Shopping Bag</h3>
+          <p class="drawer-sub">Cash on Delivery &bull; Rachana Beauty Boutique</p>
+        </div>
+        <button type="button" class="drawer-close-btn" id="close-cart-drawer-btn" aria-label="Close Cart">&times;</button>
+      </div>
+      <div id="cart-drawer-body" class="cart-drawer-body"></div>
+    </aside>
+  </div>
+
+  <!-- SERVICE / PRODUCT DETAIL MODAL (Accessible without login) -->
+  <div id="item-detail-backdrop" class="drawer-backdrop" hidden>
+    <div class="cart-drawer" role="dialog" aria-modal="true" aria-label="Item Details">
+      <div class="cart-drawer-header">
+        <div>
+          <h3 class="serif" id="item-detail-modal-title">Details</h3>
+          <p class="drawer-sub">Rachana Beauty Parlour • Uppal, Hyderabad</p>
+        </div>
+        <button type="button" class="drawer-close-btn" id="close-item-detail-btn" aria-label="Close Details">&times;</button>
+      </div>
+      <div id="item-detail-modal-body" class="cart-drawer-body"></div>
+    </div>
+  </div>
+
+  <!-- APPOINTMENT SERVICE PICKER & SEARCHABLE MODAL / BOTTOM-SHEET -->
+  <div id="service-picker-backdrop" class="drawer-backdrop" hidden>
+    <div class="cart-drawer service-picker-drawer" role="dialog" aria-modal="true" aria-label="Select Salon Service">
+      <div class="cart-drawer-header">
+        <div>
+          <h3 class="serif" style="font-size:18px;">Select Salon Service</h3>
+          <p class="drawer-sub">Choose from menu or type your custom service</p>
+        </div>
+        <button type="button" class="drawer-close-btn" id="close-service-picker-btn" aria-label="Close Service Picker">&times;</button>
+      </div>
+
+      <!-- Quick Switch Tabs: [Salon Menu] vs [Type Manually] -->
+      <div class="service-picker-tabs">
+        <button type="button" class="service-picker-tab active" id="tab-srv-menu">📋 Salon Menu</button>
+        <button type="button" class="service-picker-tab" id="tab-srv-manual">✏️ Type Manually</button>
+      </div>
+
+      <div id="service-picker-body" class="cart-drawer-body" style="padding:14px;overflow-y:auto;">
+        <!-- Dynamically rendered by renderServicePickerContent -->
+      </div>
+    </div>
+  </div>
+
+  <!-- RAZORPAY TEST MODE CHECKOUT MODAL -->
+  <div id="rzp-modal-backdrop" class="drawer-backdrop" hidden>
+    <div class="cart-drawer" role="dialog" aria-modal="true" aria-label="Razorpay Test Mode Payment">
+      <div class="cart-drawer-header" style="background:#1A2B4C;">
+        <div>
+          <h3 class="serif" style="color:#FFFFFF;font-family:var(--font-sans);font-size:16px;">Razorpay Secure Checkout (TEST MODE)</h3>
+          <p class="drawer-sub" style="color:#B0C4DE;">Rachana Beauty Parlour • Verified Server-Side Order</p>
+        </div>
+        <button type="button" class="drawer-close-btn" id="close-rzp-modal-btn" aria-label="Cancel Payment">&times;</button>
+      </div>
+      <div id="rzp-modal-body" class="cart-drawer-body"></div>
+    </div>
+  </div>
+
+  <!-- CUSTOMER TRAINING / ACADEMY APPLICATION MODAL -->
+  <div id="training-apply-backdrop" class="drawer-backdrop" hidden>
+    <div class="cart-drawer" role="dialog" aria-modal="true" aria-label="Apply for Beauty Academy Training">
+      <div class="cart-drawer-header">
+        <div>
+          <h3 class="serif" id="training-modal-title">Academy Application</h3>
+          <p class="drawer-sub">Rachana Beauty Academy • Professional Certification</p>
+        </div>
+        <button type="button" class="drawer-close-btn" id="close-training-modal-btn" aria-label="Close Application">&times;</button>
+      </div>
+      <div id="training-modal-body" class="cart-drawer-body"></div>
+    </div>
+  </div>
+
+  <!-- CONTACT US MODAL / PANEL (Opened via Header Contact Us Button) -->
+  <div id="contact-modal-backdrop" class="drawer-backdrop" hidden>
+    <div class="cart-drawer" role="dialog" aria-modal="true" aria-label="Contact Rachana Beauty Parlour">
+      <div class="cart-drawer-header">
+        <div>
+          <h3 class="serif" id="contact-modal-title">Contact Us</h3>
+          <p class="drawer-sub">Rachana Beauty Parlour • Uppal, Hyderabad</p>
+        </div>
+        <button type="button" class="drawer-close-btn" id="close-contact-modal-btn" aria-label="Close Contact">&times;</button>
+      </div>
+      <div id="contact-modal-body" class="cart-drawer-body">
+        <div class="section-block" style="display:flex;flex-direction:column;gap:12px;">
+          <!-- 1. Call Us -->
+          <div style="background:var(--ivory-50);border:1px solid rgba(201,166,107,0.3);border-radius:10px;padding:13px;">
+            <div style="font-size:11px;font-weight:800;color:var(--gold-600);text-transform:uppercase;letter-spacing:0.5px;">Call Us Directly</div>
+            <div style="font-size:15px;font-weight:700;color:var(--wine-900);margin:2px 0 8px;">+91 80749 68435</div>
+            <a href="tel:+918074968435" class="btn-primary-gold" style="width:100%;padding:9px;font-size:12px;text-align:center;text-decoration:none;display:block;">
+              📞 Call +91 80749 68435
+            </a>
+          </div>
+
+          <!-- 2. WhatsApp -->
+          <div style="background:var(--ivory-50);border:1px solid rgba(201,166,107,0.3);border-radius:10px;padding:13px;">
+            <div style="font-size:11px;font-weight:800;color:var(--success);text-transform:uppercase;letter-spacing:0.5px;">WhatsApp Enquiry</div>
+            <div style="font-size:12.5px;color:var(--charcoal-800);margin:2px 0 8px;">Direct customer support, bridal bookings & consultation.</div>
+            <a href="https://wa.me/918074968435?text=Hello%20Rachana%20Beauty%20Parlour%2C%20I%20would%20like%20to%20get%20in%20touch%20with%20you." target="_blank" rel="noopener" class="btn-contact-wa" style="width:100%;padding:9px;font-size:12px;text-align:center;text-decoration:none;display:block;">
+              Chat on WhatsApp (+91 80749 68435)
+            </a>
+          </div>
+
+          <!-- 3. Location & 4. Opening Hours -->
+          <div style="background:var(--ivory-100);border-radius:10px;padding:13px;display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <div style="font-size:11px;font-weight:800;color:var(--wine-900);text-transform:uppercase;letter-spacing:0.5px;">📍 Parlour Location</div>
+              <div style="font-size:12px;color:var(--charcoal-800);margin-top:3px;line-height:1.45;">
+                Venkateswara Colony, Vijayapuri Colony, Uppal, Hyderabad, Telangana 500039
+              </div>
+            </div>
+            <div style="border-top:1px dashed rgba(201,166,107,0.4);padding-top:8px;">
+              <div style="font-size:11px;font-weight:800;color:var(--wine-900);text-transform:uppercase;letter-spacing:0.5px;">⏰ Opening Hours</div>
+              <div style="font-size:12px;color:var(--charcoal-800);margin-top:3px;">
+                11:00 AM – 8:00 PM (Monday – Sunday)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN PORTAL MODAL (Opened ONLY via the subtle plain-text link at bottom of Homepage) -->
+  <div id="admin-modal-backdrop" class="drawer-backdrop admin-backdrop" hidden>
+    <div class="admin-modal-container" role="dialog" aria-modal="true" aria-label="Admin Portal">
+      <div class="admin-portal-header">
+        <div class="admin-header-left">
+          <div class="admin-header-badge">ADMIN CONTROL CENTER</div>
+          <h2 class="serif admin-header-title">Rachana Beauty Parlour</h2>
+          <p class="admin-header-sub">PostgreSQL 16 &bull; Real Database Management Suite</p>
+        </div>
+        <div class="admin-header-actions">
+          <button type="button" class="admin-header-close-btn" id="close-admin-modal-btn" aria-label="Exit Admin Portal">
+            <span>&times;</span>
+            <span class="admin-close-text">Exit Portal</span>
+          </button>
+        </div>
+      </div>
+      <div id="admin-modal-body" class="admin-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Supabase JS client — used for admin authentication only -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="./app.js?v=20261002v8"></script>
+</body>
+</html>

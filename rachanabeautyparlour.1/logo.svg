@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 140" fill="none">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E6C994" />
+      <stop offset="50%" stop-color="#C9A66B" />
+      <stop offset="100%" stop-color="#9F7B42" />
+    </linearGradient>
+    <linearGradient id="wineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5E172B" />
+      <stop offset="100%" stop-color="#380B18" />
+    </linearGradient>
+    <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#380B18" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- Luxury Emblem Crest -->
+  <g transform="translate(12, 12)" filter="url(#softGlow)">
+    <!-- Outer Octagonal/Oval Luxury Medallion -->
+    <circle cx="58" cy="58" r="54" fill="url(#wineGrad)" stroke="url(#goldGrad)" stroke-width="2.2"/>
+    <circle cx="58" cy="58" r="48" fill="none" stroke="url(#goldGrad)" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.75"/>
+    
+    <!-- Delicate Botanical / Lotus Crown Motif -->
+    <path d="M58 16 C61 24, 67 28, 58 34 C49 28, 55 24, 58 16 Z" fill="url(#goldGrad)" opacity="0.9"/>
+    <path d="M46 21 C50 26, 54 30, 53 34 C47 31, 45 27, 46 21 Z" fill="url(#goldGrad)" opacity="0.75"/>
+    <path d="M70 21 C66 26, 62 30, 63 34 C69 31, 71 27, 70 21 Z" fill="url(#goldGrad)" opacity="0.75"/>
+
+    <!-- Stylized Monogram 'R' & Feminine Silhouette Flourish -->
+    <path d="M42 84 L42 40 L59 40 C68 40, 73 45, 73 52 C73 59, 67 63, 59 64 L75 84 L66 84 L52 65 L49 65 L49 84 Z M49 46 L49 59 L58 59 C63 59, 66 56.5, 66 52.5 C66 48.5, 63 46, 58 46 Z" fill="url(#goldGrad)"/>
+    <!-- Subtle Diamond Star Accent -->
+    <path d="M80 42 L82 47 L87 49 L82 51 L80 56 L78 51 L73 49 L78 47 Z" fill="#F6E3BA"/>
+    <!-- Bottom Laurel Curve -->
+    <path d="M34 91 Q58 102 82 91" stroke="url(#goldGrad)" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- Brand Typography -->
+  <g transform="translate(142, 0)">
+    <text x="0" y="58" font-family="'Cormorant Garamond', 'Didot', 'Bodoni MT', Georgia, serif" font-size="42" font-weight="700" letter-spacing="4.5" fill="#4A1222">RACHANA</text>
+    <line x1="2" y1="72" x2="355" y2="72" stroke="url(#goldGrad)" stroke-width="1.2" opacity="0.8"/>
+    <text x="2" y="96" font-family="'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif" font-size="14.5" font-weight="600" letter-spacing="7.5" fill="#8C583A">BEAUTY PARLOUR</text>
+    <text x="3" y="118" font-family="'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif" font-size="10.5" font-weight="500" letter-spacing="3.2" fill="#7D6B6D">LUXURY SALON • BRIDAL STUDIO • BOUTIQUE</text>
+  </g>
+</svg>
