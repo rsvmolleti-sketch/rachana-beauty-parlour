@@ -1003,6 +1003,7 @@
       // Save to Supabase Cloud
       try {
         const supaRes = await mutateSupabase('appointments', 'POST', {
+          user_id: parsedBody.userId || state.currentUser?.id,
           booking_reference: apptObj.booking_reference,
           appointment_date: apptObj.appointment_date,
           appointment_time: apptObj.appointment_time,
