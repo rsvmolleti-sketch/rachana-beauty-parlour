@@ -726,16 +726,14 @@
 
       let authUser = null;
       let sessionToken = null;
+      let lastErr = null;
 
-      // Direct Supabase Auth via signInWithPassword
+      // Authenticate strictly via Supabase Auth signInWithPassword
       if (supabaseClient) {
         const candidateEmails = [
           rawPhone.includes('@') ? rawPhone : `${phone}@gmail.com`,
           rawPhone.includes('@') ? rawPhone : `${phone}@rachanabeauty.com`,
         ];
-
-        let signInSuccess = false;
-        let lastErr = null;
 
         for (const candidate of candidateEmails) {
           try {
@@ -743,10 +741,9 @@
               email: candidate,
               password: rawPassword,
             });
-            if (!error && data?.user) {
+            if (!error && data?.user && data?.session) {
               authUser = data.user;
-              sessionToken = data.session?.access_token;
-              signInSuccess = true;
+              sessionToken = data.session.access_token;
               break;
             } else if (error) {
               lastErr = error;
@@ -755,34 +752,25 @@
             lastErr = e;
           }
         }
-
-        if (!signInSuccess) {
-          // Check local customer fallback or throw clear error
-          const customers = getStoredCustomers();
-          let account = customers[phone];
-          let isPasswordValid = false;
-          if (account) {
-            if (account.password_hash && account.salt) {
-              const checkHash = await hashPasswordSecure(rawPassword, account.salt);
-              isPasswordValid = (checkHash === account.password_hash);
-            } else if (account.password) {
-              isPasswordValid = (rawPassword === account.password);
-            }
-          }
-
-          if (!isPasswordValid) {
-            const msg = lastErr?.message || 'Invalid mobile number or password. Please try again.';
-            throw new Error(msg);
-          }
-        }
       }
 
-      // Fetch profile from profiles table if exists
+      if (!sessionToken || !authUser) {
+        const rawMsg = lastErr?.message || '';
+        let friendlyMsg = 'Invalid mobile number or password. Please try again.';
+        if (rawMsg.toLowerCase().includes('email not confirmed')) {
+          friendlyMsg = 'Email confirmation pending. Please check with administrator or sign up.';
+        } else if (rawMsg.toLowerCase().includes('rate limit') || rawMsg.toLowerCase().includes('too many requests')) {
+          friendlyMsg = 'Too many login attempts. Please wait a moment and try again.';
+        }
+        throw new Error(friendlyMsg);
+      }
+
+      // Fetch profile from public.profiles table using verified identity
       let profile = {
-        id: authUser?.id || `usr-${phone}`,
-        full_name: authUser?.user_metadata?.full_name || 'Valued Customer',
+        id: authUser.id,
+        full_name: authUser.user_metadata?.full_name || 'Valued Customer',
         phone: phone,
-        phone_e164: `+91 ${phone}`,
+        phone_e164: `+91${phone}`,
         address_line1: '',
         pincode: '500039',
         is_active: true,
@@ -791,18 +779,28 @@
       try {
         const cloudCusts = await fetchFromSupabase('profiles', `?phone=eq.${phone}`);
         if (Array.isArray(cloudCusts) && cloudCusts.length > 0) {
-          profile = { ...profile, ...cloudCusts[0] };
+          const cp = cloudCusts[0];
+          profile = {
+            ...profile,
+            full_name: cp.full_name || profile.full_name,
+            address_line1: cp.address_line1 || '',
+            pincode: cp.pincode || profile.pincode,
+            city: cp.city || 'Hyderabad',
+            state: cp.state || 'Telangana',
+          };
         }
       } catch (_) {}
 
-      const token = sessionToken || `cust-${phone}-${Date.now()}`;
-      setStoredToken(token);
+      setStoredToken(sessionToken);
       setStoredProfile(profile);
+      state.authToken = sessionToken;
+      state.profile = profile;
       loadPersistedCart();
+      updateAuthNavigationUI();
 
       return {
-        accessToken: token,
-        token: token,
+        accessToken: sessionToken,
+        token: sessionToken,
         profile: profile,
         user: profile,
         cart: state.cart || {},
@@ -828,7 +826,7 @@
       }
 
       const authEmail = `${phone}@gmail.com`;
-      let authUserId = null;
+      let authUser = null;
       let sessionToken = null;
 
       if (supabaseClient) {
@@ -845,42 +843,26 @@
             },
           });
           if (error) {
-            if (error.message && error.message.toLowerCase().includes('already registered')) {
+            if (error.message && (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('user already exists'))) {
               throw new Error(`An account with mobile number ${phone} is already registered. Please sign in.`);
             }
+            throw new Error(error.message || 'Registration failed. Please try again.');
           }
           if (data?.user) {
-            authUserId = data.user.id;
-            sessionToken = data.session?.access_token;
+            authUser = data.user;
+            sessionToken = data.session?.access_token || null;
           }
         } catch (authErr) {
-          if (authErr.message && authErr.message.includes('already registered')) {
-            throw authErr;
-          }
-          console.warn('[Supabase Auth SignUp Warning]:', authErr);
+          throw authErr;
         }
       }
 
-      // Check if already registered in local storage or in Supabase Cloud
-      const customers = getStoredCustomers();
-      let alreadyRegistered = Boolean(customers[phone]);
-      if (!alreadyRegistered) {
-        try {
-          const cloudCheck = await fetchFromSupabase('profiles', `?phone=eq.${phone}`);
-          if (Array.isArray(cloudCheck) && cloudCheck.length > 0) {
-            alreadyRegistered = true;
-          }
-        } catch (_) {}
+      if (!authUser) {
+        throw new Error('Could not create account in Supabase Auth. Please try again.');
       }
-      if (alreadyRegistered) {
-        throw new Error(`An account with mobile number ${phone} is already registered. Please sign in.`);
-      }
-
-      const salt = generateSalt();
-      const passwordHash = await hashPasswordSecure(password, salt);
 
       const profile = {
-        id: authUserId || `usr-${phone}`,
+        id: authUser.id,
         full_name: fullName,
         phone: phone,
         phone_e164: `+91${phone}`,
@@ -890,49 +872,39 @@
         created_at: new Date().toISOString(),
       };
 
-      const accountRecord = {
-        ...profile,
-        salt: salt,
-        password_hash: passwordHash,
-      };
-
-      // Persist directly to Supabase Cloud profiles table
+      // Persist directly to Supabase Cloud profiles table (do not store plaintext password or hashes)
       try {
-        const supaRes = await mutateSupabase(
+        await mutateSupabase(
           'profiles',
           'POST',
           {
-            id: authUserId && isValidUUID(authUserId) ? authUserId : undefined,
+            id: authUser && isValidUUID(authUser.id) ? authUser.id : undefined,
             phone: phone,
             phone_e164: `+91${phone}`,
             full_name: fullName,
             address_line1: addressLine1,
             pincode: profile.pincode,
-            password_hash: passwordHash,
-            salt: salt,
             is_active: true,
           },
           '?on_conflict=phone',
           'resolution=merge-duplicates,return=representation'
         );
-        const createdProf = Array.isArray(supaRes) ? supaRes[0] : supaRes;
-        if (createdProf && createdProf.id && !createdProf.code) {
-          profile.id = createdProf.id;
-          accountRecord.id = createdProf.id;
-        }
       } catch (err) {
-        console.warn('Supabase profiles insert error:', err);
+        console.warn('[Supabase profiles insert warning]:', err);
       }
 
-      setStoredCustomer(accountRecord);
-      const token = sessionToken || `cust-${phone}-${Date.now()}`;
-      setStoredToken(token);
-      setStoredProfile(profile);
-      loadPersistedCart();
+      if (sessionToken) {
+        setStoredToken(sessionToken);
+        setStoredProfile(profile);
+        state.authToken = sessionToken;
+        state.profile = profile;
+        loadPersistedCart();
+        updateAuthNavigationUI();
+      }
 
       return {
-        accessToken: token,
-        token: token,
+        accessToken: sessionToken,
+        token: sessionToken,
         profile: profile,
         user: profile,
         cart: state.cart || {},
@@ -4601,14 +4573,14 @@
           <div>
             <h1 class="section-title">Customer Account</h1>
             <p style="font-size:11.5px;color:var(--charcoal-600);">
-              Sign in or register to manage your profile and delivery address.
+              Log in or register to manage your profile and delivery address.
             </p>
           </div>
 
           <!-- Auth Mode Switcher -->
           <div class="category-chips-scroll">
             <button type="button" class="category-chip ${state.authViewMode === 'login' ? 'active' : ''}"
-                    data-switch-auth-mode="login">Sign In</button>
+                    data-switch-auth-mode="login">Log In</button>
             <button type="button" class="category-chip ${state.authViewMode === 'register' ? 'active' : ''}"
                     data-switch-auth-mode="register">Register Account</button>
           </div>
@@ -4643,7 +4615,7 @@
                        placeholder="Enter your password" required />
               </div>
               <button type="submit" class="btn-primary-gold" style="padding:10px;" ${state.authSubmitting ? 'disabled' : ''}>
-                ${state.authSubmitting ? 'SIGNING IN...' : 'SIGN IN'}
+                ${state.authSubmitting ? 'LOGGING IN...' : 'LOG IN'}
               </button>
             </form>
           `
@@ -8464,7 +8436,7 @@ Please contact me with further details. Thank you!`;
           applyAuthenticatedProfile(prof, res.cart);
           syncCartToBackendAsync();
           state.loginPhone = '';
-          showCartToast('Signed in successfully!');
+          showCartToast('Logged in successfully!');
           if (state.bookingRedirectAfterAuth) {
             state.bookingRedirectAfterAuth = false;
             state.authInfoMsg = '';
@@ -8518,7 +8490,7 @@ Please contact me with further details. Thank you!`;
           setStoredToken(token);
           applyAuthenticatedProfile(prof, res.cart);
           syncCartToBackendAsync();
-          showCartToast('Account registered & signed in!');
+          showCartToast('Account registered & logged in!');
           if (state.bookingRedirectAfterAuth) {
             state.bookingRedirectAfterAuth = false;
             state.authInfoMsg = '';
