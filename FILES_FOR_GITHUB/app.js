@@ -175,7 +175,7 @@
       } else {
         window.localStorage.removeItem(PROFILE_STORAGE_KEY);
       }
-    } catch { }
+    } catch {}
   }
 
   const SERVICES_STORAGE_KEY = 'rbp_custom_services';
@@ -195,7 +195,7 @@
   function setCustomServices(list) {
     try {
       window.localStorage.setItem(SERVICES_STORAGE_KEY, JSON.stringify(list));
-    } catch { }
+    } catch {}
   }
   function getCustomProducts() {
     try {
@@ -208,7 +208,7 @@
   function setCustomProducts(list) {
     try {
       window.localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(list));
-    } catch { }
+    } catch {}
   }
   function getCustomCertificates() {
     try {
@@ -221,7 +221,7 @@
   function setCustomCertificates(list) {
     try {
       window.localStorage.setItem(CERTIFICATES_STORAGE_KEY, JSON.stringify(list));
-    } catch { }
+    } catch {}
   }
   function getCustomAbout() {
     try {
@@ -234,7 +234,7 @@
   function setCustomAbout(about) {
     try {
       window.localStorage.setItem(ABOUT_STORAGE_KEY, JSON.stringify(about));
-    } catch { }
+    } catch {}
   }
   function getCustomBridal() {
     try {
@@ -247,7 +247,7 @@
   function setCustomBridal(list) {
     try {
       window.localStorage.setItem(BRIDAL_STORAGE_KEY, JSON.stringify(list));
-    } catch { }
+    } catch {}
   }
   const PACKAGES_STORAGE_KEY = 'rbp_custom_packages';
   function getCustomPackages() {
@@ -261,7 +261,7 @@
   function setCustomPackages(list) {
     try {
       window.localStorage.setItem(PACKAGES_STORAGE_KEY, JSON.stringify(list));
-    } catch { }
+    } catch {}
   }
 
   const CART_STORAGE_PREFIX = 'rbp_cart_user_';
@@ -287,7 +287,7 @@
           return;
         }
       }
-    } catch (_) { }
+    } catch (_) {}
     state.cart = {};
   }
 
@@ -295,7 +295,7 @@
     try {
       const key = getCartStorageKey();
       window.localStorage.setItem(key, JSON.stringify(state.cart || {}));
-    } catch (_) { }
+    } catch (_) {}
   }
 
   function getStoredCustomers() {
@@ -313,7 +313,7 @@
       const map = getStoredCustomers();
       map[cust.phone] = cust;
       window.localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(map));
-    } catch (_) { }
+    } catch (_) {}
   }
 
   async function hashPasswordSecure(password, salt) {
@@ -324,7 +324,7 @@
         const hashBuffer = await crypto.subtle.digest('SHA-256', data);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-      } catch (_) { }
+      } catch (_) {}
     }
     let hash = 0;
     const str = `${salt}:${password}`;
@@ -354,7 +354,7 @@
         window.localStorage.removeItem(TOKEN_STORAGE_KEY);
         setStoredProfile(null);
       }
-    } catch { }
+    } catch {}
     updateAccountNavLabels();
   }
 
@@ -374,7 +374,7 @@
       } else {
         window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
       }
-    } catch { }
+    } catch {}
   }
 
   const SHARED_ORDERS_KEY = 'rbp_shared_orders';
@@ -400,7 +400,7 @@
         orders.unshift(ord);
       }
       window.localStorage.setItem(SHARED_ORDERS_KEY, JSON.stringify(orders.slice(0, 200)));
-    } catch (_) { }
+    } catch (_) {}
   }
 
   function updateLocalOrder(orderId, updates) {
@@ -412,7 +412,7 @@
         orders[idx] = { ...orders[idx], ...updates };
         window.localStorage.setItem(SHARED_ORDERS_KEY, JSON.stringify(orders));
       }
-    } catch (_) { }
+    } catch (_) {}
   }
 
   function deleteLocalOrder(orderId) {
@@ -420,7 +420,7 @@
     try {
       const orders = getSharedOrders().filter(o => o.id !== orderId && o.order_number !== orderId);
       window.localStorage.setItem(SHARED_ORDERS_KEY, JSON.stringify(orders));
-    } catch (_) { }
+    } catch (_) {}
   }
 
   function getSharedAppointments() {
@@ -443,7 +443,7 @@
         apts.unshift(apt);
       }
       window.localStorage.setItem(SHARED_APPOINTMENTS_KEY, JSON.stringify(apts.slice(0, 200)));
-    } catch (_) { }
+    } catch (_) {}
   }
 
   function updateLocalAppointment(aptId, updates) {
@@ -455,7 +455,7 @@
         apts[idx] = { ...apts[idx], ...updates };
         window.localStorage.setItem(SHARED_APPOINTMENTS_KEY, JSON.stringify(apts));
       }
-    } catch (_) { }
+    } catch (_) {}
   }
 
   function deleteLocalAppointment(aptId) {
@@ -463,7 +463,7 @@
     try {
       const apts = getSharedAppointments().filter(a => a.id !== aptId && a.booking_reference !== aptId);
       window.localStorage.setItem(SHARED_APPOINTMENTS_KEY, JSON.stringify(apts));
-    } catch (_) { }
+    } catch (_) {}
   }
 
   function getTodayDateString() {
@@ -530,22 +530,50 @@
     }
   }
 
-  async function mutateSupabase(table, method, body, query = '') {
+  async function getActiveAuthToken() {
+    if (supabaseClient) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.access_token) return session.access_token;
+      } catch (_) {}
+    }
+    if (state.authToken && state.authToken.startsWith('eyJ')) {
+      return state.authToken;
+    }
+    return SUPABASE_CONFIG.anonKey;
+  }
+
+  async function mutateSupabase(table, method, body, query = '', preferHeader = 'return=representation') {
+    const token = await getActiveAuthToken();
     try {
       const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/${table}${query}`, {
         method,
         headers: {
           'Content-Type': 'application/json',
           apikey: SUPABASE_CONFIG.anonKey,
-          Authorization: `Bearer ${SUPABASE_CONFIG.anonKey}`,
-          Prefer: 'return=representation',
+          Authorization: `Bearer ${token}`,
+          Prefer: preferHeader,
         },
         body: body ? JSON.stringify(body) : undefined,
       });
-      return await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // If duplicate profile phone conflict, return gracefully
+        if (res.status === 409 && table === 'profiles') {
+          return data;
+        }
+        console.error(`[Supabase ${method} on ${table} Error]: Status ${res.status}`, data);
+        const err = new Error(data?.message || data?.details || data?.hint || `Supabase error ${res.status}`);
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
+      return data;
     } catch (err) {
-      console.warn(`[Supabase Mutation] Could not ${method} ${table}:`, err);
-      return null;
+      if (err.status !== 409) {
+        console.error(`[Supabase Mutation Exception on ${table}]:`, err);
+      }
+      throw err;
     }
   }
 
@@ -594,13 +622,13 @@
           const userAptsKey = `rbp_apts_${rawPhone}`;
           const savedApts = window.localStorage.getItem(userAptsKey);
           if (savedApts) apts = JSON.parse(savedApts);
-        } catch (_) { }
+        } catch (_) {}
 
         try {
           const userOrdsKey = `rbp_ords_${rawPhone}`;
           const savedOrds = window.localStorage.getItem(userOrdsKey);
           if (savedOrds) ords = JSON.parse(savedOrds);
-        } catch (_) { }
+        } catch (_) {}
 
         // Fetch user's appointments from Supabase Cloud across devices
         if (rawPhone) {
@@ -618,7 +646,7 @@
                 }
               }
             }
-          } catch (_) { }
+          } catch (_) {}
 
           // Fetch user's orders from Supabase Cloud across devices
           try {
@@ -628,7 +656,7 @@
                 let itms = co.items;
                 if (!itms || (Array.isArray(itms) && itms.length === 0)) itms = co.order_items || [];
                 if (typeof itms === 'string') {
-                  try { itms = JSON.parse(itms); } catch (_) { }
+                  try { itms = JSON.parse(itms); } catch (_) {}
                 }
                 const formatted = {
                   ...co,
@@ -641,7 +669,7 @@
                 }
               }
             }
-          } catch (_) { }
+          } catch (_) {}
         }
       }
 
@@ -669,97 +697,96 @@
       }
 
       const phone = rawPhone.replace(/\D/g, '').slice(-10);
-      if (!/^[6-9]\d{9}$/.test(phone)) {
+      if (!rawPhone.includes('@') && !/^[6-9]\d{9}$/.test(phone)) {
         throw new Error('Please enter a valid 10-digit Indian mobile number.');
       }
 
-      // 1. Try active backend server first if available (e.g. running on localhost:3000)
-      let backendAttempted = false;
-      try {
-        const netRes = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, password: rawPassword }),
-        });
-        if (netRes.status !== 404) {
-          backendAttempted = true;
-          const netData = await netRes.json().catch(() => ({}));
-          if (!netRes.ok) {
-            throw new Error(netData.error || 'Authentication failed. Please check your credentials.');
+      let authUser = null;
+      let sessionToken = null;
+      let authErrorMessage = '';
+
+      // Direct Supabase Auth via signInWithPassword
+      if (supabaseClient) {
+        const candidateEmails = [
+          rawPhone.includes('@') ? rawPhone : `${phone}@rachanabeauty.com`,
+          rawPhone.includes('@') ? rawPhone : `${phone}@rachana.com`,
+        ];
+
+        let signInSuccess = false;
+        let lastErr = null;
+
+        for (const candidate of candidateEmails) {
+          try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+              email: candidate,
+              password: rawPassword,
+            });
+            if (!error && data?.user) {
+              authUser = data.user;
+              sessionToken = data.session?.access_token;
+              signInSuccess = true;
+              break;
+            } else if (error) {
+              lastErr = error;
+            }
+          } catch (e) {
+            lastErr = e;
           }
-          const token = netData.accessToken || netData.token || `cust-${phone}-${Date.now()}`;
-          const prof = netData.profile || netData.user || {
-            full_name: 'Valued Customer',
-            phone: phone,
-            phone_e164: '+91 ' + phone,
-          };
-          setStoredToken(token);
-          setStoredProfile(prof);
-          loadPersistedCart();
-          return {
-            ...netData,
-            accessToken: token,
-            profile: prof,
-            cart: state.cart || {},
-          };
         }
-      } catch (netErr) {
-        if (backendAttempted || (netErr.message && !netErr.message.includes('404') && !netErr.message.includes('Failed to fetch') && !netErr.message.includes('NetworkError'))) {
-          throw netErr;
+
+        if (!signInSuccess && !rawPhone.includes('@')) {
+          try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+              phone: `+91${phone}`,
+              password: rawPassword,
+            });
+            if (!error && data?.user) {
+              authUser = data.user;
+              sessionToken = data.session?.access_token;
+              signInSuccess = true;
+            }
+          } catch (_) {}
         }
-      }
 
-      // 2. For static deployment, validate against registered customer records (local + Supabase Cloud)
-      const customers = getStoredCustomers();
-      let account = customers[phone];
-
-      if (!account) {
-        try {
-          const cloudCusts = await fetchFromSupabase('profiles', `?phone=eq.${phone}`);
-          if (Array.isArray(cloudCusts) && cloudCusts.length > 0) {
-            account = cloudCusts[0];
-            setStoredCustomer(account);
+        if (!signInSuccess) {
+          // Check local customer fallback or throw clear error
+          const customers = getStoredCustomers();
+          let account = customers[phone];
+          let isPasswordValid = false;
+          if (account) {
+            if (account.password_hash && account.salt) {
+              const checkHash = await hashPasswordSecure(rawPassword, account.salt);
+              isPasswordValid = (checkHash === account.password_hash);
+            } else if (account.password) {
+              isPasswordValid = (rawPassword === account.password);
+            }
           }
-        } catch (_) { }
-      }
 
-      // Rule 3: If mobile number is NOT registered
-      if (!account) {
-        throw new Error('No account found with this mobile number. Please register first.');
-      }
-
-      // Rule 2 & 4: Password validation
-      let isPasswordValid = false;
-      if (account.password_hash && account.salt) {
-        const checkHash = await hashPasswordSecure(rawPassword, account.salt);
-        isPasswordValid = (checkHash === account.password_hash);
-      } else if (account.password) {
-        // Upgrade legacy account
-        isPasswordValid = (rawPassword === account.password);
-        if (isPasswordValid) {
-          const salt = generateSalt();
-          account.password_hash = await hashPasswordSecure(rawPassword, salt);
-          account.salt = salt;
-          delete account.password;
-          setStoredCustomer(account);
+          if (!isPasswordValid) {
+            const msg = lastErr?.message || 'Invalid mobile number or password. Please try again.';
+            throw new Error(msg);
+          }
         }
       }
 
-      if (!isPasswordValid) {
-        throw new Error('Incorrect password. Please try again.');
-      }
-
-      // Rule 5: Both phone and password validated successfully
-      const profile = {
-        id: account.id || `usr-${phone}`,
-        full_name: account.full_name || 'Valued Customer',
+      // Fetch profile from profiles table if exists
+      let profile = {
+        id: authUser?.id || `usr-${phone}`,
+        full_name: authUser?.user_metadata?.full_name || 'Valued Customer',
         phone: phone,
-        phone_e164: account.phone_e164 || `+91 ${phone}`,
-        address_line1: account.address_line1 || '',
-        pincode: account.pincode || '500039',
+        phone_e164: `+91 ${phone}`,
+        address_line1: '',
+        pincode: '500039',
       };
 
-      const token = `cust-${phone}-${Date.now()}`;
+      try {
+        const cloudCusts = await fetchFromSupabase('profiles', `?phone=eq.${phone}`);
+        if (Array.isArray(cloudCusts) && cloudCusts.length > 0) {
+          profile = { ...profile, ...cloudCusts[0] };
+        }
+      } catch (_) {}
+
+      const token = sessionToken || `cust-${phone}-${Date.now()}`;
       setStoredToken(token);
       setStoredProfile(profile);
       loadPersistedCart();
@@ -791,41 +818,37 @@
         throw new Error('Password must be at least 6 characters.');
       }
 
-      // Try backend server first if available
-      let backendAttempted = false;
-      try {
-        const netRes = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullName, phone, password, addressLine1 }),
-        });
-        if (netRes.status !== 404) {
-          backendAttempted = true;
-          const netData = await netRes.json().catch(() => ({}));
-          if (!netRes.ok) {
-            throw new Error(netData.error || 'Registration failed.');
-          }
-          const token = netData.accessToken || netData.token || `cust-${phone}-${Date.now()}`;
-          const prof = netData.profile || netData.user;
-          setStoredToken(token);
-          if (prof) setStoredProfile(prof);
-          loadPersistedCart();
+      const authEmail = `${phone}@rachanabeauty.com`;
+      let authUserId = null;
+      let sessionToken = null;
 
-          // Save local copy with salt & hash for static resilience
-          const salt = generateSalt();
-          const passwordHash = await hashPasswordSecure(password, salt);
-          setStoredCustomer({
-            ...(prof || {}),
-            phone,
-            salt,
-            password_hash: passwordHash,
+      if (supabaseClient) {
+        try {
+          const { data, error } = await supabaseClient.auth.signUp({
+            email: authEmail,
+            password: password,
+            options: {
+              data: {
+                full_name: fullName,
+                phone: phone,
+                phone_e164: `+91${phone}`,
+              },
+            },
           });
-
-          return netData;
-        }
-      } catch (netErr) {
-        if (backendAttempted || (netErr.message && !netErr.message.includes('404') && !netErr.message.includes('Failed to fetch') && !netErr.message.includes('NetworkError'))) {
-          throw netErr;
+          if (error) {
+            if (error.message && error.message.toLowerCase().includes('already registered')) {
+              throw new Error(`An account with mobile number ${phone} is already registered. Please sign in.`);
+            }
+          }
+          if (data?.user) {
+            authUserId = data.user.id;
+            sessionToken = data.session?.access_token;
+          }
+        } catch (authErr) {
+          if (authErr.message && authErr.message.includes('already registered')) {
+            throw authErr;
+          }
+          console.warn('[Supabase Auth SignUp Warning]:', authErr);
         }
       }
 
@@ -838,7 +861,7 @@
           if (Array.isArray(cloudCheck) && cloudCheck.length > 0) {
             alreadyRegistered = true;
           }
-        } catch (_) { }
+        } catch (_) {}
       }
       if (alreadyRegistered) {
         throw new Error(`An account with mobile number ${phone} is already registered. Please sign in.`);
@@ -848,7 +871,7 @@
       const passwordHash = await hashPasswordSecure(password, salt);
 
       const profile = {
-        id: `usr-${phone}`,
+        id: authUserId || `usr-${phone}`,
         full_name: fullName,
         phone: phone,
         phone_e164: `+91${phone}`,
@@ -866,6 +889,7 @@
       // Persist directly to Supabase Cloud profiles table
       try {
         const supaRes = await mutateSupabase('profiles', 'POST', {
+          id: authUserId && isValidUUID(authUserId) ? authUserId : undefined,
           phone: phone,
           phone_e164: `+91${phone}`,
           full_name: fullName,
@@ -884,7 +908,7 @@
       }
 
       setStoredCustomer(accountRecord);
-      const token = `cust-${phone}-${Date.now()}`;
+      const token = sessionToken || `cust-${phone}-${Date.now()}`;
       setStoredToken(token);
       setStoredProfile(profile);
       loadPersistedCart();
@@ -968,7 +992,7 @@
         if (booked && Array.isArray(booked)) {
           bookedTimes = booked.map(b => (b.appointment_time || '').trim());
         }
-      } catch (_) { }
+      } catch (_) {}
       const defaultSlots = generateDefaultTimeslots();
       const slotsWithAvailability = defaultSlots.map(s => {
         const isBooked = bookedTimes.includes(s.time24) || bookedTimes.includes(s.time12) || bookedTimes.includes(s.label);
@@ -984,57 +1008,82 @@
     }
     if (url.startsWith('/api/appointments')) {
       const srv = (state.services || []).find((s) => s.id === parsedBody.serviceId);
-      const apptObj = {
-        id: `apt-${Date.now()}`,
-        booking_reference: 'RBP-BK-' + Math.floor(100000 + Math.random() * 900000),
-        appointment_date: parsedBody.appointmentDate || parsedBody.date || getTodayDateString(),
-        appointment_time: parsedBody.appointmentTime || parsedBody.time || '11:00:00',
-        customer_name: parsedBody.customerName || 'Valued Customer',
-        customer_phone: parsedBody.customerPhone || '8074968435',
-        service_id: (parsedBody.serviceId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parsedBody.serviceId)) ? parsedBody.serviceId : null,
-        service_name: parsedBody.customServiceName || (srv ? srv.name : 'Salon Service'),
-        service_price: srv ? (srv.discount_price || srv.price) : 999,
-        duration_minutes: srv?.duration_minutes || 30,
-        notes: parsedBody.notes || '',
-        status: 'confirmed',
-        created_at: new Date().toISOString(),
+      const bookingDate = parsedBody.appointmentDate || parsedBody.date || getTodayDateString();
+      const bookingTime = parsedBody.appointmentTime || parsedBody.time || '11:00:00';
+      const custName = parsedBody.customerName || (state.profile ? state.profile.full_name : 'Valued Customer');
+      const custPhone = parsedBody.customerPhone || (state.profile ? state.profile.phone : '8074968435');
+      const validServiceId = (parsedBody.serviceId && isValidUUID(parsedBody.serviceId)) ? parsedBody.serviceId : (srv?.id && isValidUUID(srv.id) ? srv.id : null);
+      const bookingNotes = parsedBody.notes || '';
+
+      // Prepare payload with ONLY the required columns:
+      // customer_name, customer_phone, appointment_date, appointment_time, service_id, notes, status: 'pending'
+      // and user_id (only if logged in). Do NOT send service_price, duration_minutes, end_time or service_name (DB trigger sets them).
+      const supaPayload = {
+        customer_name: custName,
+        customer_phone: custPhone,
+        appointment_date: bookingDate,
+        appointment_time: bookingTime,
+        service_id: validServiceId,
+        notes: bookingNotes,
+        status: 'pending',
       };
 
-      // Save to Supabase Cloud
-      try {
-        const supaRes = await mutateSupabase('appointments', 'POST', {
-          user_id: parsedBody.userId || state.currentUser?.id,
-          booking_reference: apptObj.booking_reference,
-          appointment_date: apptObj.appointment_date,
-          appointment_time: apptObj.appointment_time,
-          customer_name: apptObj.customer_name,
-          customer_phone: apptObj.customer_phone,
-          service_id: apptObj.service_id,
-          service_name: apptObj.service_name,
-          service_price: apptObj.service_price,
-          duration_minutes: apptObj.duration_minutes,
-          notes: apptObj.notes,
-          status: apptObj.status,
-        });
-        const createdRow = Array.isArray(supaRes) ? supaRes[0] : supaRes;
-        if (createdRow && createdRow.id && !createdRow.code) {
-          apptObj.id = createdRow.id;
-        }
-      } catch (err) {
-        console.warn('Supabase appointments insert warning:', err);
+      // Check if user has an active Supabase Auth session with a valid UUID
+      let authUserId = null;
+      if (supabaseClient) {
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session?.user?.id && isValidUUID(session.user.id)) {
+            authUserId = session.user.id;
+          }
+        } catch (_) {}
       }
+
+      if (authUserId) {
+        supaPayload.user_id = authUserId;
+      }
+
+      // Save to Supabase Cloud - if user_id violates RLS (e.g. anon role or non-auth profile ID), retry seamlessly without user_id
+      let supaRes;
+      try {
+        supaRes = await mutateSupabase('appointments', 'POST', supaPayload);
+      } catch (insertErr) {
+        if (supaPayload.user_id && (insertErr.status === 401 || insertErr.status === 403 || String(insertErr.message).includes('row-level security'))) {
+          delete supaPayload.user_id;
+          supaRes = await mutateSupabase('appointments', 'POST', supaPayload);
+        } else {
+          throw insertErr;
+        }
+      }
+      const createdRow = Array.isArray(supaRes) ? supaRes[0] : supaRes;
+
+      const apptObj = {
+        id: createdRow?.id || `apt-${Date.now()}`,
+        booking_reference: createdRow?.booking_reference || ('RBP-BK-' + Math.floor(100000 + Math.random() * 900000)),
+        appointment_date: bookingDate,
+        appointment_time: bookingTime,
+        customer_name: custName,
+        customer_phone: custPhone,
+        service_id: validServiceId,
+        service_name: createdRow?.service_name || parsedBody.customServiceName || (srv ? srv.name : 'Salon Service'),
+        service_price: createdRow?.service_price ?? (srv ? (srv.discount_price || srv.price) : 999),
+        duration_minutes: createdRow?.duration_minutes ?? (srv?.duration_minutes || 30),
+        notes: bookingNotes,
+        status: createdRow?.status || 'pending',
+        created_at: createdRow?.created_at || new Date().toISOString(),
+      };
 
       // Add to shared appointments so it is instantly visible in Admin portal
       addSharedAppointment(apptObj);
 
-      const phone = (apptObj.customer_phone || '').replace(/\D/g, '').slice(-10);
+      const phone = (custPhone || '').replace(/\D/g, '').slice(-10);
       if (phone) {
         try {
           const userAptsKey = `rbp_apts_${phone}`;
           const existing = JSON.parse(window.localStorage.getItem(userAptsKey) || '[]');
           existing.unshift(apptObj);
           window.localStorage.setItem(userAptsKey, JSON.stringify(existing));
-        } catch (_) { }
+        } catch (_) {}
       }
 
       return {
@@ -1098,7 +1147,7 @@
                 quantity: item.quantity || 1,
                 unit_price: item.price || item.unit_price || 0,
                 subtotal: (item.quantity || 1) * (item.price || item.unit_price || 0),
-              }).catch(() => { });
+              }).catch(() => {});
             }
           }
         }
@@ -1115,7 +1164,7 @@
           const existing = JSON.parse(window.localStorage.getItem(userOrdsKey) || '[]');
           existing.unshift(ordObj);
           window.localStorage.setItem(userOrdsKey, JSON.stringify(existing));
-        } catch (_) { }
+        } catch (_) {}
       }
 
       return {
@@ -1156,7 +1205,7 @@
         const result = await mutateSupabase('training_applications', 'POST', payload);
         const created = Array.isArray(result) ? result[0] : result;
         if (created && !created.code) application = created;
-      } catch (_) { }
+      } catch (_) {}
 
       return { success: true, application, message: 'Application submitted successfully!' };
     }
@@ -1182,14 +1231,14 @@
       if (options.method === 'PATCH' && orderId) {
         try {
           await mutateSupabase(`orders?id=eq.${orderId}`, 'PATCH', parsedBody);
-        } catch (_) { }
+        } catch (_) {}
         updateLocalOrder(orderId, parsedBody);
         return { success: true, order: parsedBody };
       }
       if (options.method === 'DELETE' && orderId) {
         try {
           await mutateSupabase(`orders?id=eq.${orderId}`, 'DELETE');
-        } catch (_) { }
+        } catch (_) {}
         deleteLocalOrder(orderId);
         return { success: true };
       }
@@ -1211,7 +1260,7 @@
           itms = o.order_items || [];
         }
         if (typeof itms === 'string') {
-          try { itms = JSON.parse(itms); } catch (_) { }
+          try { itms = JSON.parse(itms); } catch (_) {}
         }
         return {
           ...o,
@@ -1244,14 +1293,14 @@
       if (options.method === 'PATCH' && aptId) {
         try {
           await mutateSupabase(`appointments?id=eq.${aptId}`, 'PATCH', parsedBody);
-        } catch (_) { }
+        } catch (_) {}
         updateLocalAppointment(aptId, parsedBody);
         return { success: true, appointment: parsedBody };
       }
       if (options.method === 'DELETE' && aptId) {
         try {
           await mutateSupabase(`appointments?id=eq.${aptId}`, 'DELETE');
-        } catch (_) { }
+        } catch (_) {}
         deleteLocalAppointment(aptId);
         return { success: true };
       }
@@ -1294,13 +1343,13 @@
       if (options.method === 'DELETE' && appId) {
         try {
           await mutateSupabase(`training_applications?id=eq.${appId}`, 'DELETE');
-        } catch (_) { }
+        } catch (_) {}
         return { success: true };
       }
       if (options.method === 'PATCH' && appId) {
         try {
           await mutateSupabase(`training_applications?id=eq.${appId}`, 'PATCH', parsedBody);
-        } catch (_) { }
+        } catch (_) {}
         return { success: true, application: parsedBody };
       }
       if (appId) {
@@ -1527,7 +1576,7 @@
         setCustomBridal(state.bridalItems);
         try {
           await mutateSupabase('bridal_items', 'POST', newItem);
-        } catch (_) { }
+        } catch (_) {}
         return { success: true, item: newItem };
       }
       if ((options.method === 'PUT' || options.method === 'PATCH') && bridalId) {
@@ -1542,7 +1591,7 @@
         }
         try {
           await mutateSupabase(`bridal_items?id=eq.${bridalId}`, 'PATCH', parsedBody);
-        } catch (_) { }
+        } catch (_) {}
         return { success: true, item: state.bridalItems[idx] || parsedBody };
       }
       if (options.method === 'DELETE' && bridalId) {
@@ -1550,7 +1599,7 @@
         setCustomBridal(state.bridalItems);
         try {
           await mutateSupabase(`bridal_items?id=eq.${bridalId}`, 'DELETE');
-        } catch (_) { }
+        } catch (_) {}
         return { success: true };
       }
       return { bridalItems: state.bridalItems };
@@ -1578,7 +1627,7 @@
         setCustomPackages(state.trainingPackages);
         try {
           await mutateSupabase('training_packages', 'POST', newPkg);
-        } catch (_) { }
+        } catch (_) {}
         return { success: true, package: newPkg };
       }
       if ((options.method === 'PUT' || options.method === 'PATCH') && packageId) {
@@ -1593,7 +1642,7 @@
         }
         try {
           await mutateSupabase(`training_packages?id=eq.${packageId}`, 'PATCH', parsedBody);
-        } catch (_) { }
+        } catch (_) {}
         return { success: true, package: state.trainingPackages[idx] || parsedBody };
       }
       if (options.method === 'DELETE' && packageId) {
@@ -1601,7 +1650,7 @@
         setCustomPackages(state.trainingPackages);
         try {
           await mutateSupabase(`training_packages?id=eq.${packageId}`, 'DELETE');
-        } catch (_) { }
+        } catch (_) {}
         return { success: true };
       }
       return { packages: (state.trainingPackages && state.trainingPackages.length > 0) ? state.trainingPackages : (getCustomPackages() || BUILTIN_FALLBACK_DATA.trainingPackages || []) };
@@ -1610,8 +1659,8 @@
     if (url.startsWith('/api/admin/about')) {
       if (options.method === 'PUT' || options.method === 'POST') {
         const hasImgKey = ('imageUrl' in parsedBody) || ('image_url' in parsedBody);
-        const resolvedImg = hasImgKey
-          ? (parsedBody.imageUrl || parsedBody.image_url || '')
+        const resolvedImg = hasImgKey 
+          ? (parsedBody.imageUrl || parsedBody.image_url || '') 
           : (state.aboutDetails?.image_url || '');
 
         state.aboutDetails = {
@@ -1721,7 +1770,7 @@
         if (Array.isArray(cloudCerts) && cloudCerts.length > 0) {
           state.certificates = cloudCerts;
         }
-      } catch (_) { }
+      } catch (_) {}
       return { certificates: state.certificates || BUILTIN_FALLBACK_DATA.certificates };
     }
     if (url.startsWith('/api/admin/homepage-cards')) {
@@ -1788,7 +1837,7 @@
         if (Array.isArray(cloudCards) && cloudCards.length > 0) {
           state.homepageCards = cloudCards;
         }
-      } catch (_) { }
+      } catch (_) {}
       return { homepageCards: state.homepageCards || BUILTIN_FALLBACK_DATA.homepageCards };
     }
     if (url.startsWith('/api/admin/customers')) {
@@ -1796,7 +1845,7 @@
       try {
         const res = await fetchFromSupabase('profiles', '?select=*&order=created_at.desc');
         if (Array.isArray(res)) profiles = res;
-      } catch (_) { }
+      } catch (_) {}
 
       // Merge & sync locally registered customers
       const localCusts = Object.values(getStoredCustomers());
@@ -1824,7 +1873,7 @@
             pincode: lc.pincode || '500039',
             password_hash: lc.password_hash || null,
             salt: lc.salt || null,
-          }).catch(() => { });
+          }).catch(() => {});
         }
       }
 
@@ -1833,10 +1882,10 @@
       let allApts = [];
       try {
         allOrders = (await fetchFromSupabase('orders', '?select=recipient_phone')) || [];
-      } catch (_) { }
+      } catch (_) {}
       try {
         allApts = (await fetchFromSupabase('appointments', '?select=customer_phone')) || [];
-      } catch (_) { }
+      } catch (_) {}
 
       const localOrders = getSharedOrders();
       for (const lo of localOrders) {
@@ -1870,15 +1919,15 @@
       try {
         const ordRes = await fetchFromSupabase('orders', '?select=*&order=created_at.desc');
         if (Array.isArray(ordRes)) orders = ordRes;
-      } catch (_) { }
+      } catch (_) {}
       try {
         const aptRes = await fetchFromSupabase('appointments', '?select=*,services(name)&order=appointment_date.desc');
         if (Array.isArray(aptRes)) appointments = aptRes;
-      } catch (_) { }
+      } catch (_) {}
       try {
         const custRes = await fetchFromSupabase('profiles', '?select=*');
         if (Array.isArray(custRes)) customers = custRes;
-      } catch (_) { }
+      } catch (_) {}
 
       // Merge local fallback if needed
       const localOrders = getSharedOrders();
@@ -2205,20 +2254,26 @@
         setCustomCertificates(customCertsToSync);
       }
 
-      // 6. Sync stored customer profiles to Supabase Cloud
+      // 6. Sync stored customer profiles to Supabase Cloud safely
       const storedCustomers = Object.values(getStoredCustomers() || {});
       for (const cust of storedCustomers) {
         if (!cust || !cust.phone) continue;
         const cleanPhone = cust.phone.replace(/\D/g, '').slice(-10);
-        mutateSupabase('profiles', 'POST', {
-          phone: cleanPhone,
-          phone_e164: `+91${cleanPhone}`,
-          full_name: cust.full_name || 'Valued Customer',
-          address_line1: cust.address_line1 || '',
-          pincode: cust.pincode || '500039',
-          password_hash: cust.password_hash || null,
-          salt: cust.salt || null,
-        }).catch(() => { });
+        mutateSupabase(
+          'profiles',
+          'POST',
+          {
+            phone: cleanPhone,
+            phone_e164: `+91${cleanPhone}`,
+            full_name: cust.full_name || 'Valued Customer',
+            address_line1: cust.address_line1 || '',
+            pincode: cust.pincode || '500039',
+            password_hash: cust.password_hash || null,
+            salt: cust.salt || null,
+          },
+          '?on_conflict=phone',
+          'resolution=merge-duplicates,return=representation'
+        ).catch(() => {});
       }
     } catch (err) {
       console.warn('[Sync Error] Background sync failed:', err);
@@ -2249,7 +2304,7 @@
       ]);
 
       // Trigger background sync of any local data to Supabase Cloud
-      // syncExistingLocalDataToCloud(sbServices || [], sbProducts || [], sbBridal || [], sbPackages || [], sbCertificates || []);
+      syncExistingLocalDataToCloud(sbServices || [], sbProducts || [], sbBridal || [], sbPackages || [], sbCertificates || []);
 
       // Build categories list
       const resolvedCategories = (sbCategories && sbCategories.length > 0) ? sbCategories : BUILTIN_FALLBACK_DATA.serviceCategories;
@@ -2257,7 +2312,7 @@
       // Merge Cloud Services + Local Custom Services (Cloud is primary, combined with local)
       const mergedServices = [];
       const serviceNameMap = new Set();
-
+      
       // Add cloud services first
       if (Array.isArray(sbServices)) {
         for (const s of sbServices) {
@@ -2464,6 +2519,35 @@
 
     if (data.session?.profile) {
       applyAuthenticatedProfile(data.session.profile, data.session.cart);
+    } else if (supabaseClient) {
+      try {
+        const { data: authData } = await supabaseClient.auth.getSession();
+        if (authData?.session?.user) {
+          state.authToken = authData.session.access_token;
+          setStoredToken(authData.session.access_token);
+          const savedProfile = getStoredProfile();
+          if (savedProfile) {
+            applyAuthenticatedProfile(savedProfile, state.cart);
+          } else {
+            const rawPhone = authData.session.user.user_metadata?.phone || (authData.session.user.email || '').split('@')[0];
+            const cleanPhone = (rawPhone || '').replace(/\D/g, '').slice(-10);
+            applyAuthenticatedProfile({
+              id: authData.session.user.id,
+              full_name: authData.session.user.user_metadata?.full_name || 'Valued Customer',
+              phone: cleanPhone || '8074968435',
+              phone_e164: `+91 ${cleanPhone || '8074968435'}`,
+            }, state.cart);
+          }
+        } else if (state.authToken) {
+          const savedProfile = getStoredProfile();
+          if (savedProfile) applyAuthenticatedProfile(savedProfile, state.cart);
+        }
+      } catch (_) {
+        if (state.authToken) {
+          const savedProfile = getStoredProfile();
+          if (savedProfile) applyAuthenticatedProfile(savedProfile, state.cart);
+        }
+      }
     } else if (state.authToken) {
       const savedProfile = getStoredProfile();
       if (savedProfile) {
@@ -2636,7 +2720,7 @@
     apiFetch('/api/cart', {
       method: 'PUT',
       body: JSON.stringify({ items }),
-    }).catch(() => { });
+    }).catch(() => {});
   }
 
   function mutateCartItem(productId, delta) {
@@ -2709,7 +2793,7 @@
     } else {
       try {
         window.history.replaceState({ tab: 'home' }, '', '#home');
-      } catch (_) { }
+      } catch (_) {}
     }
 
     // 2. Popstate listener for browser back/forward and trackpad/mobile swipe back
@@ -2831,7 +2915,7 @@
       if (currentHash !== targetTab) {
         try {
           window.history.pushState({ tab: targetTab }, '', '#' + targetTab);
-        } catch (_) { }
+        } catch (_) {}
       }
     }
 
@@ -2899,7 +2983,7 @@
       try {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter(Boolean);
-      } catch (_) { }
+      } catch (_) {}
     }
     return [raw];
   }
@@ -3115,47 +3199,47 @@
       state.homepageCards && state.homepageCards.length > 0
         ? state.homepageCards.filter((c) => c.is_active !== false && c.target_tab !== 'academy')
         : [
-          {
-            badge_label: '01 • SALON MENU',
-            title: 'Services',
-            description: 'Hair, Facial, Skin & Spa Rituals',
-            icon: '✨',
-            target_tab: 'services',
-            target_param: '',
-          },
-          {
-            badge_label: '02 • BOUTIQUE',
-            title: 'Shop / Products',
-            description: 'Luxury Salon Hair & Skin Products',
-            icon: '🛍️',
-            target_tab: 'shop',
-            target_param: '',
-          },
-          {
-            badge_label: '03 • COUTURE ATELIER',
-            title: 'Bridal',
-            description: 'Bridal Makeup, Draping & Pre-Bridal',
-            icon: '👑',
-            target_tab: 'bridal',
-            target_param: '',
-          },
-          {
-            badge_label: '04 • INSTANT RESERVATION',
-            title: 'Appointment',
-            description: '11:00 AM – 8:00 PM • Confirmed Slots',
-            icon: '📅',
-            target_tab: 'book',
-            target_param: '',
-          },
-        ];
+            {
+              badge_label: '01 • SALON MENU',
+              title: 'Services',
+              description: 'Hair, Facial, Skin & Spa Rituals',
+              icon: '✨',
+              target_tab: 'services',
+              target_param: '',
+            },
+            {
+              badge_label: '02 • BOUTIQUE',
+              title: 'Shop / Products',
+              description: 'Luxury Salon Hair & Skin Products',
+              icon: '🛍️',
+              target_tab: 'shop',
+              target_param: '',
+            },
+            {
+              badge_label: '03 • COUTURE ATELIER',
+              title: 'Bridal',
+              description: 'Bridal Makeup, Draping & Pre-Bridal',
+              icon: '👑',
+              target_tab: 'bridal',
+              target_param: '',
+            },
+            {
+              badge_label: '04 • INSTANT RESERVATION',
+              title: 'Appointment',
+              description: '11:00 AM – 8:00 PM • Confirmed Slots',
+              icon: '📅',
+              target_tab: 'book',
+              target_param: '',
+            },
+          ];
 
     return `
       <!-- SECTION 2: 4 FEATURE CARDS GRID -->
       <section class="homepage-cards-section" aria-label="Parlour Highlights">
         <div class="homepage-cards-grid">
           ${rawCards
-        .map(
-          (card) => `
+            .map(
+              (card) => `
             <article class="home-feature-card" data-feature-card-target="${escapeHtml(card.target_tab)}" data-feature-card-param="${escapeHtml(card.target_param || '')}" tabindex="0" role="button" aria-label="${escapeHtml(card.title)}">
               <div class="feature-card-top">
                 <span class="feature-card-badge">${escapeHtml(card.badge_label || '')}</span>
@@ -3166,8 +3250,8 @@
               <div class="feature-card-arrow">&rarr;</div>
             </article>
           `
-        )
-        .join('')}
+            )
+            .join('')}
         </div>
       </section>
 
@@ -3570,16 +3654,16 @@
           <button type="button" class="category-chip ${state.selectedServiceCategory === 'all' ? 'active' : ''}"
                   data-filter-service-cat="all">All Services</button>
           ${state.serviceCategories
-        .map(
-          (cat) => `
+            .map(
+              (cat) => `
               <button type="button"
                       class="category-chip ${state.selectedServiceCategory === cat.slug ? 'active' : ''}"
                       data-filter-service-cat="${escapeHtml(cat.slug)}">
                 ${escapeHtml(cat.name)}
               </button>
             `
-        )
-        .join('')}
+            )
+            .join('')}
         </div>
 
         <div class="cards-grid-2col">
@@ -3690,10 +3774,11 @@
                href="https://wa.me/918074968435?text=${waMsg}" style="flex:1;padding:8px;">
               Open WhatsApp to Contact Parlour (+91 80749 68435)
             </a>
-            ${state.authToken
-          ? `<button type="button" class="btn-wine-compact" data-nav-target="account">View in My Appointments</button>`
-          : ''
-        }
+            ${
+              state.authToken
+                ? `<button type="button" class="btn-wine-compact" data-nav-target="account">View in My Appointments</button>`
+                : ''
+            }
           </div>
         </div>
       `;
@@ -3806,23 +3891,24 @@
 
           <div class="form-field">
             <label class="form-label">Appointment Time (11:00 AM – 8:00 PM, 30-Min Slots) *</label>
-            ${f.loadingSlots
-        ? `<div style="font-size:12px;color:var(--charcoal-600);padding:8px 0;">Loading available 30-minute slots...</div>`
-        : `
+            ${
+              f.loadingSlots
+                ? `<div style="font-size:12px;color:var(--charcoal-600);padding:8px 0;">Loading available 30-minute slots...</div>`
+                : `
                 <div class="slots-grid" id="booking-slots-grid">
                   ${(f.slots && f.slots.length > 0 ? f.slots : generateDefaultTimeslots())
-          .map(
-            (slot) => {
-              const slotVal = slot.time24 || slot.time12 || slot.label || slot.time || '';
-              const slotDisplay = slot.label || slot.time12 || slot.time || slot.time24 || 'Slot';
-              const isSelected = Boolean(f.time24 && (slotVal === f.time24 || slotDisplay === f.time24 || slot.time24 === f.time24));
-              const isBooked = !slot.available;
-              const inlineStyle = isSelected
-                ? 'background:var(--wine-900)!important;border-color:var(--wine-900)!important;color:#FFFFFF!important;font-weight:700!important;'
-                : (isBooked
-                  ? 'background:var(--ivory-200)!important;border-color:rgba(140,125,129,0.25)!important;color:var(--charcoal-400)!important;'
-                  : 'background:#FFFFFF!important;border:1.5px solid var(--ivory-300)!important;color:var(--charcoal-900)!important;');
-              return `
+                    .map(
+                      (slot) => {
+                        const slotVal = slot.time24 || slot.time12 || slot.label || slot.time || '';
+                        const slotDisplay = slot.label || slot.time12 || slot.time || slot.time24 || 'Slot';
+                        const isSelected = Boolean(f.time24 && (slotVal === f.time24 || slotDisplay === f.time24 || slot.time24 === f.time24));
+                        const isBooked = !slot.available;
+                        const inlineStyle = isSelected
+                          ? 'background:var(--wine-900)!important;border-color:var(--wine-900)!important;color:#FFFFFF!important;font-weight:700!important;'
+                          : (isBooked
+                              ? 'background:var(--ivory-200)!important;border-color:rgba(140,125,129,0.25)!important;color:var(--charcoal-400)!important;'
+                              : 'background:#FFFFFF!important;border:1.5px solid var(--ivory-300)!important;color:var(--charcoal-900)!important;');
+                        return `
                           <button type="button"
                                   class="slot-btn ${isSelected ? 'selected' : ''} ${isBooked ? 'booked' : ''}"
                                   style="${inlineStyle}"
@@ -3832,12 +3918,12 @@
                             ${isBooked ? '<br><small>Booked</small>' : ''}
                           </button>
                         `;
-            }
-          )
-          .join('')}
+                      }
+                    )
+                    .join('')}
                 </div>
               `
-      }
+            }
           </div>
 
           <div class="form-field">
@@ -3973,10 +4059,10 @@
         <!-- Category Filter Chips -->
         <div class="service-cat-chips-row">
           ${categories.map((c) => {
-      const label = c === 'all' ? 'All Services' : c;
-      const activeClass = catFilter === c ? 'active' : '';
-      return `<button type="button" class="service-cat-chip ${activeClass}" data-srv-cat-filter="${escapeHtml(c)}">${escapeHtml(label)}</button>`;
-    }).join('')}
+            const label = c === 'all' ? 'All Services' : c;
+            const activeClass = catFilter === c ? 'active' : '';
+            return `<button type="button" class="service-cat-chip ${activeClass}" data-srv-cat-filter="${escapeHtml(c)}">${escapeHtml(label)}</button>`;
+          }).join('')}
         </div>
 
         <!-- Custom Request Banner when typing -->
@@ -4008,9 +4094,9 @@
               </button>
             </div>
           ` : filtered.map((s) => {
-      const isSelected = !isCustomActive && s.id === currentSelectedId;
-      const price = Number(s.discount_price ?? s.price);
-      return `
+            const isSelected = !isCustomActive && s.id === currentSelectedId;
+            const price = Number(s.discount_price ?? s.price);
+            return `
               <div class="service-pick-card ${isSelected ? 'selected' : ''}" data-pick-service-id="${escapeHtml(s.id)}">
                 <div style="flex:1;min-width:0;">
                   <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
@@ -4035,7 +4121,7 @@
                 </div>
               </div>
             `;
-    }).join('')}
+          }).join('')}
         </div>
       </div>
     `;
@@ -4129,13 +4215,14 @@
           </span>
         </div>
 
-        ${certs.length === 0
-        ? `<div class="certificates-empty-box">No certificates added yet.</div>`
-        : `
+        ${
+          certs.length === 0
+            ? `<div class="certificates-empty-box">No certificates added yet.</div>`
+            : `
               <div class="certificates-grid">
                 ${certs
-          .map(
-            (c) => `
+                  .map(
+                    (c) => `
                   <article class="certificate-card" data-open-certificate-modal="${escapeHtml(c.id)}" tabindex="0" role="button" aria-label="${escapeHtml(c.title || 'Certificate')}">
                     <div class="certificate-img-wrap">
                       <img src="${escapeHtml(c.image_url || c.credential_url || '')}" alt="${escapeHtml(c.title || 'Certificate')}" class="certificate-img" loading="lazy" />
@@ -4143,11 +4230,11 @@
                     <div class="certificate-caption">${escapeHtml(c.title || 'Certificate')}</div>
                   </article>
                 `
-          )
-          .join('')}
+                  )
+                  .join('')}
               </div>
             `
-      }
+        }
       </section>
 
       <!-- SECTION 4: LOCATION & MAP -->
@@ -4279,8 +4366,9 @@
 
           ${state.authErrorMsg ? `<div class="alert-box alert-error">${escapeHtml(state.authErrorMsg)}</div>` : ''}
           ${state.authInfoMsg ? `<div class="alert-box" style="background:#FFF9EB;color:var(--wine-900);border:1px solid #E6D2A5;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px;">🔒 ${escapeHtml(state.authInfoMsg)}</div>` : ''}
-          ${state.authMissingEnvVars.length > 0
-          ? `
+          ${
+            state.authMissingEnvVars.length > 0
+              ? `
             <div class="alert-box" style="background:var(--warning-bg);color:var(--warning);border:1px solid rgba(155,107,21,0.3);">
               <div style="font-weight:800;margin-bottom:4px;">Required Environment Variables (.env.local):</div>
               <ul style="padding-left:16px;font-size:11px;">
@@ -4288,11 +4376,12 @@
               </ul>
             </div>
           `
-          : ''
-        }
+              : ''
+          }
 
-          ${state.authViewMode === 'login'
-          ? `
+          ${
+            state.authViewMode === 'login'
+              ? `
             <form id="customer-login-form" class="section-block">
               <div class="form-field">
                 <label class="form-label" for="login-phone-input">10-Digit Indian Mobile Number</label>
@@ -4309,11 +4398,12 @@
               </button>
             </form>
           `
-          : ''
-        }
+              : ''
+          }
 
-          ${state.authViewMode === 'register'
-          ? `
+          ${
+            state.authViewMode === 'register'
+              ? `
             <form id="customer-register-form" class="section-block">
               <div class="form-field">
                 <label class="form-label" for="reg-name-input">Full Name *</label>
@@ -4336,8 +4426,8 @@
               </button>
             </form>
           `
-          : ''
-        }
+              : ''
+          }
 
 
           <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--ivory-300);text-align:center;">
@@ -4390,13 +4480,14 @@
       <!-- MY APPOINTMENTS -->
       <section class="panel-card" id="my-appointments-section">
         <h2 class="section-title">My Appointments (${state.accountAppointments.length})</h2>
-        ${state.loadingAccount
-        ? `<p style="font-size:12px;color:var(--charcoal-600);">Loading appointments from database...</p>`
-        : state.accountAppointments.length === 0
-          ? `<p style="font-size:12px;color:var(--charcoal-600);">You have no appointments yet.</p>`
-          : state.accountAppointments
-            .map(
-              (a) => `
+        ${
+          state.loadingAccount
+            ? `<p style="font-size:12px;color:var(--charcoal-600);">Loading appointments from database...</p>`
+            : state.accountAppointments.length === 0
+            ? `<p style="font-size:12px;color:var(--charcoal-600);">You have no appointments yet.</p>`
+            : state.accountAppointments
+                .map(
+                  (a) => `
               <div class="cart-line-item" style="flex-direction:column;align-items:stretch;gap:4px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                   <strong style="color:var(--wine-900);font-size:13px;">${escapeHtml(a.service_name)}</strong>
@@ -4411,21 +4502,22 @@
                 </div>
               </div>
             `
-            )
-            .join('')
-      }
+                )
+                .join('')
+        }
       </section>
 
       <!-- MY ORDERS -->
       <section class="panel-card" id="my-orders-section">
         <h2 class="section-title">My Orders (${state.accountOrders.length})</h2>
-        ${state.loadingAccount
-        ? `<p style="font-size:12px;color:var(--charcoal-600);">Loading orders from database...</p>`
-        : state.accountOrders.length === 0
-          ? `<p style="font-size:12px;color:var(--charcoal-600);">You have no orders yet.</p>`
-          : state.accountOrders
-            .map(
-              (o) => `
+        ${
+          state.loadingAccount
+            ? `<p style="font-size:12px;color:var(--charcoal-600);">Loading orders from database...</p>`
+            : state.accountOrders.length === 0
+            ? `<p style="font-size:12px;color:var(--charcoal-600);">You have no orders yet.</p>`
+            : state.accountOrders
+                .map(
+                  (o) => `
               <div class="cart-line-item" style="flex-direction:column;align-items:stretch;gap:5px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                   <strong style="color:var(--wine-900);font-size:13px;">Order ID: ${escapeHtml(o.order_number)}</strong>
@@ -4434,27 +4526,29 @@
                 <div style="font-size:11.5px;color:var(--charcoal-800);">
                   <strong>Products:</strong>
                   ${(o.items || [])
-                  .map((it) => `${escapeHtml(it.product_name_snapshot)} (Qty: ${it.quantity})`)
-                  .join(', ')}
+                    .map((it) => `${escapeHtml(it.product_name_snapshot)} (Qty: ${it.quantity})`)
+                    .join(', ')}
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;">
-                  <span><strong>Payment Status:</strong> <span style="text-transform:uppercase;font-weight:700;color:${o.payment_status === 'captured' ? 'var(--success)' : 'var(--warning)'
-                };">${escapeHtml(o.payment_status)}</span></span>
+                  <span><strong>Payment Status:</strong> <span style="text-transform:uppercase;font-weight:700;color:${
+                    o.payment_status === 'captured' ? 'var(--success)' : 'var(--warning)'
+                  };">${escapeHtml(o.payment_status)}</span></span>
                   <strong style="color:var(--wine-800);font-size:13.5px;">Total: ${formatINR(o.total_amount)}</strong>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--charcoal-600);">
                   <span>Order Date: ${escapeHtml(o.order_date || o.created_at)}</span>
-                  ${o.payment_status !== 'captured' && o.status === 'pending'
-                  ? `<button type="button" class="btn-wine-compact" style="padding:4px 9px;font-size:10.5px;"
+                  ${
+                    o.payment_status !== 'captured' && o.status === 'pending'
+                      ? `<button type="button" class="btn-wine-compact" style="padding:4px 9px;font-size:10.5px;"
                                  data-retry-order-payment="${escapeHtml(o.id)}">Retry Payment</button>`
-                  : ''
-                }
+                      : ''
+                  }
                 </div>
               </div>
             `
-            )
-            .join('')
-      }
+                )
+                .join('')
+        }
       </section>
     `;
   }
@@ -4513,8 +4607,8 @@
           <div><strong>Order ID:</strong> <code>${escapeHtml(ord.order_number)}</code></div>
           <div><strong>Delivery Address:</strong> ${escapeHtml(ord.shipping_address_line1 || '')}${ord.shipping_pincode ? `, ${escapeHtml(ord.shipping_pincode)}` : ''}</div>
           <div><strong>Items:</strong> ${(ord.items || [])
-          .map((it) => `${escapeHtml(it.product_name_snapshot)} × ${it.quantity}`)
-          .join(', ')}</div>
+            .map((it) => `${escapeHtml(it.product_name_snapshot)} × ${it.quantity}`)
+            .join(', ')}</div>
           <div><strong>Total Payable:</strong> <strong>${formatINR(ord.total_amount)}</strong></div>
           <div><strong>Order Status:</strong> <span style="text-transform:uppercase;font-weight:800;">${escapeHtml(ord.status)}</span></div>
           <div><strong>Payment Status:</strong> <span style="text-transform:uppercase;font-weight:800;">${escapeHtml(ord.payment_status)} (Pay on Delivery)</span></div>
@@ -4552,15 +4646,16 @@
     const defaultPincode = (f.shippingPincode && f.shippingPincode !== '500039') ? f.shippingPincode : '';
 
     body.innerHTML = `
-      ${state.checkoutErrorMsg
-        ? `<div class="alert-box alert-error">${escapeHtml(state.checkoutErrorMsg)}</div>`
-        : ''
+      ${
+        state.checkoutErrorMsg
+          ? `<div class="alert-box alert-error">${escapeHtml(state.checkoutErrorMsg)}</div>`
+          : ''
       }
 
       <div class="section-block">
         ${detailedItems
-        .map(
-          (item) => `
+          .map(
+            (item) => `
           <div class="cart-line-item">
             <div style="min-width:0;flex:1;">
               <div style="font-weight:700;font-size:12.5px;color:var(--wine-900);">${escapeHtml(item.name)}</div>
@@ -4573,8 +4668,8 @@
             </div>
           </div>
         `
-        )
-        .join('')}
+          )
+          .join('')}
       </div>
 
       <!-- SUBTOTAL & TOTAL SUMMARY -->
@@ -4716,9 +4811,9 @@
     const packages = state.trainingPackages && state.trainingPackages.length > 0
       ? state.trainingPackages
       : [
-        { id: '55555555-5555-4555-8555-555555555501', name: 'Beauty & Salon Skills Package' },
-        { id: '55555555-5555-4555-8555-555555555502', name: 'Advanced Beauty Treatment Package' }
-      ];
+          { id: '55555555-5555-4555-8555-555555555501', name: 'Beauty & Salon Skills Package' },
+          { id: '55555555-5555-4555-8555-555555555502', name: 'Advanced Beauty Treatment Package' }
+        ];
 
     if (!state.authToken || !state.profile) {
       body.innerHTML = `
@@ -4848,7 +4943,7 @@
         left: Math.max(0, targetScroll),
         behavior: 'smooth'
       });
-    } catch (_) { }
+    } catch (_) {}
   }
 
   async function openAdminModal() {
@@ -4877,7 +4972,7 @@
     setTimeout(() => { scrollActiveAdminTabIntoView(); }, 60);
   }
 
-  async function safeAdminFetch(url, fallbackData, opts = {}) {
+    async function safeAdminFetch(url, fallbackData, opts = {}) {
     try {
       return await apiFetch(url, {
         ...opts,
@@ -5097,8 +5192,8 @@
               </thead>
               <tbody>
                 ${services.map(s => {
-          const effectivePrice = Number(s.discount_price ?? s.price);
-          return `
+                  const effectivePrice = Number(s.discount_price ?? s.price);
+                  return `
                     <tr class="${s.is_active ? '' : 'row-archived'}">
                       <td><img src="${escapeHtml(s.image_url)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;" /></td>
                       <td>
@@ -5129,7 +5224,7 @@
                       </td>
                     </tr>
                   `;
-        }).join('')}
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -5167,8 +5262,8 @@
                 ${bridalItems.length === 0 ? `
                   <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--charcoal-600);">No bridal items found. Click "+ ADD BRIDAL ITEM" to create one.</td></tr>
                 ` : bridalItems.map(b => {
-          const effectivePrice = Number(b.discount_price ?? b.price);
-          return `
+                  const effectivePrice = Number(b.discount_price ?? b.price);
+                  return `
                     <tr class="${b.is_active ? '' : 'row-archived'}">
                       <td><strong>#${b.display_order}</strong></td>
                       <td>
@@ -5200,7 +5295,7 @@
                       </td>
                     </tr>
                   `;
-        }).join('')}
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -5237,8 +5332,8 @@
               </thead>
               <tbody>
                 ${products.map(p => {
-          const effectivePrice = Number(p.discount_price ?? p.price);
-          return `
+                  const effectivePrice = Number(p.discount_price ?? p.price);
+                  return `
                     <tr class="${p.is_active ? '' : 'row-archived'}">
                       <td><img src="${escapeHtml(p.image_url)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;" /></td>
                       <td>
@@ -5276,7 +5371,7 @@
                       </td>
                     </tr>
                   `;
-        }).join('')}
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -5611,9 +5706,9 @@
                 </button>
               </div>
             ` : packages.map(pkg => {
-          const topics = Array.isArray(pkg.topics) ? pkg.topics : [];
-          const highlights = Array.isArray(pkg.highlights) ? pkg.highlights : [];
-          return `
+              const topics = Array.isArray(pkg.topics) ? pkg.topics : [];
+              const highlights = Array.isArray(pkg.highlights) ? pkg.highlights : [];
+              return `
                 <div class="admin-card ${pkg.is_active ? '' : 'row-archived'}" style="display:flex;flex-direction:column;justify-content:space-between;">
                   <div>
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -5664,7 +5759,7 @@
                   </div>
                 </div>
               `;
-        }).join('')}
+            }).join('')}
           </div>
         `;
       } else if (state.adminTab === 'homepage-cards') {
@@ -7148,7 +7243,7 @@
               razorpay_order_id: rzpSess.razorpayOrderId,
               reason: 'Payment cancelled or failed during checkout',
             }),
-          }).catch(() => { });
+          }).catch(() => {});
 
           state.checkoutPaymentFailedMsg =
             'Payment was cancelled or failed. Your order has NOT been marked as paid and your cart is preserved — you can retry payment below.';
@@ -7616,6 +7711,11 @@
 
       // Customer Sign Out
       if (target.closest('#account-signout-btn')) {
+        if (supabaseClient) {
+          try {
+            await supabaseClient.auth.signOut();
+          } catch (_) {}
+        }
         setStoredToken(null);
         state.profile = null;
         state.accountAppointments = [];
@@ -7811,27 +7911,11 @@
             }),
           });
           state.bookingForm.lastConfirmation = res.appointment;
-          showCartToast('Appointment Booked Successfully!');
+          showCartToast('Appointment Requested Successfully!');
         } catch (err) {
-          const ref = 'RBP-BK-' + Math.floor(100000 + Math.random() * 900000);
-          const srv = state.services.find((s) => s.id === serviceId) || state.services[0];
-          const displayServiceName = customServiceName || (srv ? srv.name : 'Salon Service');
-          state.bookingForm.lastConfirmation = {
-            id: 'local-' + Date.now(),
-            booking_reference: ref,
-            service_name: displayServiceName,
-            service_price: srv ? (srv.discount_price || srv.price) : 999,
-            appointment_date: appointmentDate,
-            appointment_time: '11:00 AM – 8:00 PM',
-            customer_name: customerName,
-            customer_phone: customerPhone,
-            status: 'confirmed',
-          };
-          showCartToast('Appointment Booked Successfully!');
-          const waMsg = encodeURIComponent(
-            `Hello Rachana Beauty Parlour, I have booked an appointment!\nBooking Ref: ${ref}\nService: ${displayServiceName}\nDate: ${appointmentDate}\nName: ${customerName}\nPhone: ${customerPhone}`
-          );
-          window.open(`https://wa.me/918074968435?text=${waMsg}`, '_blank');
+          console.error('[Supabase Booking Error]:', err);
+          state.bookingForm.errorMsg = 'We could not complete your booking request at this time. Please check your details and try again, or contact us directly on WhatsApp (+91 80749 68435).';
+          showCartToast('Unable to complete booking. Please try again.');
         } finally {
           state.bookingForm.submitting = false;
           renderActiveView();
