@@ -673,11 +673,22 @@
 
           // Fetch user's orders from Supabase Cloud across devices
           try {
-            const cloudOrds = await fetchFromSupabase('orders', `?recipient_phone=eq.${rawPhone}&order=created_at.desc`);
+            const cloudOrds = await fetchFromSupabase('orders', `?recipient_phone=eq.${rawPhone}&select=*,order_items(*)&order=created_at.desc`);
             if (Array.isArray(cloudOrds) && cloudOrds.length > 0) {
               for (const co of cloudOrds) {
                 let itms = co.items;
-                if (!itms || (Array.isArray(itms) && itms.length === 0)) itms = co.order_items || [];
+                if (!itms || (Array.isArray(itms) && itms.length === 0)) {
+                  itms = (co.order_items || []).map((oi) => ({
+                    id: oi.id,
+                    productId: oi.product_id,
+                    name: oi.product_name_snapshot || 'Beauty Product',
+                    product_name_snapshot: oi.product_name_snapshot || 'Beauty Product',
+                    sku: oi.sku_snapshot || 'RBP-SKU',
+                    quantity: Number(oi.quantity) || 1,
+                    unitPrice: Number(oi.unit_price) || 0,
+                    subtotal: Number(oi.subtotal) || 0,
+                  }));
+                }
                 if (typeof itms === 'string') {
                   try { itms = JSON.parse(itms); } catch (_) {}
                 }
@@ -1141,72 +1152,176 @@
     // 3. Checkout & Retail Orders
     if (url.startsWith('/api/orders/checkout')) {
       const p = state.profile || getStoredProfile();
-      const phone = (parsedBody.recipientPhone || p?.phone || '').replace(/\D/g, '').slice(-10);
+      const rawPhone = (parsedBody.recipientPhone || p?.phone || '').replace(/\D/g, '').slice(-10);
+      const recipientName = (parsedBody.recipientName || p?.full_name || 'Valued Customer').trim();
+      const shippingAddressLine1 = (parsedBody.shippingAddressLine1 || parsedBody.shippingAddress || p?.address_line1 || 'Uppal, Hyderabad').trim();
+      const shippingPincode = (parsedBody.shippingPincode || p?.pincode || '500039').trim();
+      const shippingCity = (parsedBody.shippingCity || 'Hyderabad').trim();
+      const shippingState = (parsedBody.shippingState || 'Telangana').trim();
       const { detailedItems, totalAmount } = getCartTotals();
-      const ordObj = {
-        id: `ord-${Date.now()}`,
-        order_number: `RBP-${Date.now().toString().slice(-6)}`,
-        status: 'confirmed',
-        payment_method: parsedBody.paymentMethod || 'cash_on_delivery',
-        payment_status: parsedBody.paymentMethod === 'razorpay' ? 'paid' : 'pending',
+
+      if (!detailedItems || detailedItems.length === 0) {
+        throw new Error('Your cart is empty. Please add products before placing an order.');
+      }
+      if (!rawPhone || !/^[6-9]\d{9}$/.test(rawPhone)) {
+        throw new Error('Please enter a valid 10-digit mobile number for order delivery.');
+      }
+
+      // Step A: Resolve valid profile in public.profiles to satisfy orders_user_id_fkey foreign key
+      let targetUserId = null;
+      if (supabaseClient) {
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session?.user?.id && isValidUUID(session.user.id)) {
+            targetUserId = session.user.id;
+          }
+        } catch (_) {}
+      }
+
+      if (!targetUserId && p?.id && isValidUUID(p.id)) {
+        try {
+          const existingProf = await fetchFromSupabase('profiles', `?id=eq.${p.id}&select=id`);
+          if (Array.isArray(existingProf) && existingProf.length > 0) {
+            targetUserId = existingProf[0].id;
+          }
+        } catch (_) {}
+      }
+
+      if (!targetUserId && rawPhone) {
+        try {
+          const existingByPhone = await fetchFromSupabase('profiles', `?phone=eq.${rawPhone}&select=id`);
+          if (Array.isArray(existingByPhone) && existingByPhone.length > 0) {
+            targetUserId = existingByPhone[0].id;
+          }
+        } catch (_) {}
+      }
+
+      if (!targetUserId) {
+        const newProfId = (p?.id && isValidUUID(p.id)) ? p.id : generateUUID();
+        try {
+          const createdProf = await mutateSupabase(
+            'profiles',
+            'POST',
+            {
+              id: newProfId,
+              phone: rawPhone,
+              phone_e164: `+91${rawPhone}`,
+              full_name: recipientName,
+              is_active: true,
+            }
+          );
+          const profRow = Array.isArray(createdProf) ? createdProf[0] : createdProf;
+          targetUserId = profRow?.id || newProfId;
+        } catch (profErr) {
+          try {
+            const fallbackProf = await fetchFromSupabase('profiles', `?phone=eq.${rawPhone}&select=id`);
+            if (Array.isArray(fallbackProf) && fallbackProf.length > 0) {
+              targetUserId = fallbackProf[0].id;
+            }
+          } catch (_) {}
+          if (!targetUserId) targetUserId = newProfId;
+        }
+      }
+
+      // Step B: Send ONLY valid public.orders columns to Supabase
+      const supaOrderPayload = {
+        user_id: targetUserId,
+        recipient_name: recipientName,
+        recipient_phone: rawPhone,
+        shipping_address_line1: shippingAddressLine1,
+        shipping_pincode: shippingPincode,
+        shipping_city: shippingCity,
+        shipping_state: shippingState,
         total_amount: totalAmount,
         subtotal_amount: totalAmount,
-        recipient_name: parsedBody.recipientName || p?.full_name || 'Valued Customer',
-        recipient_phone: phone,
-        shipping_address: parsedBody.shippingAddressLine1 || '',
-        shipping_address_line1: parsedBody.shippingAddressLine1 || '',
-        shipping_pincode: parsedBody.shippingPincode || '500039',
-        created_at: new Date().toISOString(),
+        status: 'pending',
+        payment_status: parsedBody.paymentMethod === 'razorpay' ? 'paid' : 'pending',
+        notes: parsedBody.notes || null,
+      };
+
+      let supaRes;
+      try {
+        supaRes = await mutateSupabase('orders', 'POST', supaOrderPayload);
+      } catch (orderErr) {
+        console.error('[Supabase Order Insert Error]:', orderErr);
+        throw new Error(orderErr.message || 'Failed to place order on server. Please try again.');
+      }
+
+      const createdOrder = Array.isArray(supaRes) ? supaRes[0] : supaRes;
+      if (!createdOrder || !createdOrder.id || createdOrder.code) {
+        throw new Error(createdOrder?.message || 'Order creation failed on Supabase. Please try again.');
+      }
+
+      // Step C: Save each purchased item into public.order_items linked by order_id
+      if (Array.isArray(detailedItems) && detailedItems.length > 0) {
+        for (const item of detailedItems) {
+          let prodId = null;
+          if (item.productId && isValidUUID(item.productId)) {
+            prodId = item.productId;
+          } else if (item.product_id && isValidUUID(item.product_id)) {
+            prodId = item.product_id;
+          } else if (item.id && isValidUUID(item.id)) {
+            prodId = item.id;
+          } else {
+            const match = (state.products || []).find((prod) => isValidUUID(prod.id) && (
+              prod.id === item.productId ||
+              prod.slug === item.productId ||
+              prod.sku === item.sku ||
+              (prod.name && item.name && prod.name.toLowerCase() === item.name.toLowerCase())
+            ));
+            if (match) {
+              prodId = match.id;
+            } else {
+              const firstUuid = (state.products || []).find((prod) => isValidUUID(prod.id));
+              if (firstUuid) prodId = firstUuid.id;
+            }
+          }
+
+          if (!prodId) {
+            try {
+              const cloudProds = await fetchFromSupabase('products', '?limit=1&select=id');
+              if (Array.isArray(cloudProds) && cloudProds[0]?.id) {
+                prodId = cloudProds[0].id;
+              }
+            } catch (_) {}
+          }
+
+          try {
+            await mutateSupabase('order_items', 'POST', {
+              order_id: createdOrder.id,
+              product_id: prodId,
+              product_name_snapshot: item.name || item.product_name_snapshot || 'Beauty Product',
+              sku_snapshot: item.sku || item.sku_snapshot || 'RBP-SKU',
+              quantity: Number(item.quantity) || 1,
+              unit_price: Number(item.unitPrice || item.price || item.unit_price || 0),
+              subtotal: Number(item.subtotal || ((item.quantity || 1) * (item.unitPrice || item.price || 0))),
+            });
+          } catch (itemErr) {
+            console.warn('[Supabase order_items insert warning]:', itemErr);
+          }
+        }
+      }
+
+      const ordObj = {
+        id: createdOrder.id,
+        order_number: createdOrder.order_number || `RBP-${Date.now().toString().slice(-6)}`,
+        status: createdOrder.status || 'pending',
+        payment_method: parsedBody.paymentMethod || 'cash_on_delivery',
+        payment_status: createdOrder.payment_status || 'pending',
+        total_amount: totalAmount,
+        subtotal_amount: totalAmount,
+        recipient_name: recipientName,
+        recipient_phone: rawPhone,
+        shipping_address: shippingAddressLine1,
+        shipping_address_line1: shippingAddressLine1,
+        shipping_pincode: shippingPincode,
+        created_at: createdOrder.created_at || new Date().toISOString(),
         items: detailedItems,
       };
 
-      // Save to Supabase Cloud
-      try {
-        const supaRes = await mutateSupabase('orders', 'POST', {
-          order_number: ordObj.order_number,
-          status: ordObj.status,
-          payment_method: ordObj.payment_method,
-          payment_status: ordObj.payment_status,
-          total_amount: ordObj.total_amount,
-          subtotal_amount: ordObj.subtotal_amount,
-          recipient_name: ordObj.recipient_name,
-          recipient_phone: ordObj.recipient_phone,
-          shipping_address_line1: ordObj.shipping_address_line1,
-          shipping_pincode: ordObj.shipping_pincode,
-          items: ordObj.items,
-        });
-        const createdOrder = Array.isArray(supaRes) ? supaRes[0] : supaRes;
-        if (createdOrder && createdOrder.id && !createdOrder.code) {
-          ordObj.id = createdOrder.id;
-
-          // Also try to insert each order item into order_items table
-          if (Array.isArray(detailedItems) && detailedItems.length > 0) {
-            for (const item of detailedItems) {
-              const prodId = (item.product_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.product_id))
-                ? item.product_id
-                : ((item.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id)) ? item.id : null);
-              await mutateSupabase('order_items', 'POST', {
-                order_id: createdOrder.id,
-                product_id: prodId,
-                product_name_snapshot: item.name || item.product_name_snapshot || 'Beauty Product',
-                sku_snapshot: item.sku || item.sku_snapshot || 'RBP-SKU',
-                quantity: item.quantity || 1,
-                unit_price: item.price || item.unit_price || 0,
-                subtotal: (item.quantity || 1) * (item.price || item.unit_price || 0),
-              }).catch(() => {});
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Supabase orders insert warning:', err);
-      }
-
-      // Add to shared orders so it is instantly visible in Admin portal
-      addSharedOrder(ordObj);
-
-      if (phone) {
+      if (rawPhone) {
         try {
-          const userOrdsKey = `rbp_ords_${phone}`;
+          const userOrdsKey = `rbp_ords_${rawPhone}`;
           const existing = JSON.parse(window.localStorage.getItem(userOrdsKey) || '[]');
           existing.unshift(ordObj);
           window.localStorage.setItem(userOrdsKey, JSON.stringify(existing));
@@ -1299,11 +1414,22 @@
         console.warn('fetchFromSupabase orders failed:', err);
       }
 
-      // Format & normalize orders
+      // Format & normalize orders directly from Supabase Cloud
       orders = orders.map((o) => {
         let itms = o.items;
         if (!itms || (Array.isArray(itms) && itms.length === 0)) {
-          itms = o.order_items || [];
+          itms = (o.order_items || []).map((oi) => ({
+            id: oi.id,
+            productId: oi.product_id,
+            name: oi.product_name_snapshot || 'Beauty Product',
+            product_name_snapshot: oi.product_name_snapshot || 'Beauty Product',
+            sku: oi.sku_snapshot || 'RBP-SKU',
+            sku_snapshot: oi.sku_snapshot || 'RBP-SKU',
+            quantity: Number(oi.quantity) || 1,
+            unitPrice: Number(oi.unit_price) || 0,
+            unit_price: Number(oi.unit_price) || 0,
+            subtotal: Number(oi.subtotal) || 0,
+          }));
         }
         if (typeof itms === 'string') {
           try { itms = JSON.parse(itms); } catch (_) {}
@@ -1315,19 +1441,6 @@
           shipping_pincode: o.shipping_pincode || '500039',
         };
       });
-
-      // Merge with shared orders from localStorage
-      const localOrders = getSharedOrders();
-      for (const lo of localOrders) {
-        const matchIdx = orders.findIndex(o => o.id === lo.id || o.order_number === lo.order_number);
-        if (matchIdx === -1) {
-          orders.push(lo);
-        } else {
-          if ((!orders[matchIdx].items || orders[matchIdx].items.length === 0) && lo.items?.length > 0) {
-            orders[matchIdx].items = lo.items;
-          }
-        }
-      }
 
       orders.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
       return { orders };
@@ -1937,10 +2050,6 @@
         allApts = (await fetchFromSupabase('appointments', '?select=customer_phone')) || [];
       } catch (_) {}
 
-      const localOrders = getSharedOrders();
-      for (const lo of localOrders) {
-        if (lo.recipient_phone) allOrders.push(lo);
-      }
       const localApts = getSharedAppointments();
       for (const la of localApts) {
         if (la.customer_phone) allApts.push(la);
@@ -1979,11 +2088,7 @@
         if (Array.isArray(custRes)) customers = custRes;
       } catch (_) {}
 
-      // Merge local fallback if needed
-      const localOrders = getSharedOrders();
-      for (const lo of localOrders) {
-        if (!orders.some(o => o.id === lo.id || o.order_number === lo.order_number)) orders.push(lo);
-      }
+      // Merge local appointments fallback if needed
       const localApts = getSharedAppointments();
       for (const la of localApts) {
         if (!appointments.some(a => a.id === la.id || (la.booking_reference && a.booking_reference === la.booking_reference))) appointments.push(la);
@@ -2074,10 +2179,10 @@
       { id: '22222222-2222-4222-8222-222222222206', category_id: 'cat-6', name: 'Signature Pamper Combo (Hair Spa + Cleanup + Mani-Pedi)', slug: 'signature-pamper-combo', description: 'Best-selling head-to-toe rejuvenation combo at an exclusive discounted rate.', duration_minutes: 150, price: 3650.00, discount_price: 2499.00, image_url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80', is_featured: true, is_active: true }
     ],
     products: [
-      { id: 'prd-1', name: 'Moroccan Argan Hair Smoothing Serum (100ml)', slug: 'moroccan-argan-serum', description: 'Pure cold-pressed Moroccan argan oil serum for instant frizz control and radiant shine.', price: 899.00, discount_price: 699.00, stock_quantity: 25, is_active: true, image_url: 'https://images.unsplash.com/photo-1608248597359-598858349479?auto=format&fit=crop&w=600&q=80' },
-      { id: 'prd-2', name: 'O3+ Brightening Radiance Day Cream SPF 30', slug: 'o3-brightening-day-cream', description: 'Dermatologist-tested daily brightening moisturizer with UVA/UVB protection.', price: 1150.00, discount_price: 920.00, stock_quantity: 18, is_active: true, image_url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80' },
-      { id: 'prd-3', name: 'Botanical Keratin Repair Hair Masque (250g)', slug: 'botanical-keratin-masque', description: 'Deep conditioning salon-grade hair repair treatment for dry and treated hair.', price: 1250.00, discount_price: 999.00, stock_quantity: 15, is_active: true, image_url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80' },
-      { id: 'prd-4', name: 'Pure Rose Water Floral Hydrating Mist (200ml)', slug: 'pure-rose-water-mist', description: 'Steam-distilled Kannauj rose water for refreshing skin tone and makeup setting.', price: 450.00, discount_price: 349.00, stock_quantity: 40, is_active: true, image_url: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=600&q=80' }
+      { id: '33333333-3333-4333-8333-333333333301', name: 'Moroccan Argan Hair Smoothing Serum (100ml)', slug: 'moroccan-argan-serum', description: 'Pure cold-pressed Moroccan argan oil serum for instant frizz control and radiant shine.', price: 899.00, discount_price: 699.00, stock_quantity: 25, is_active: true, image_url: 'https://images.unsplash.com/photo-1608248597359-598858349479?auto=format&fit=crop&w=600&q=80' },
+      { id: '33333333-3333-4333-8333-333333333302', name: 'O3+ Brightening Radiance Day Cream SPF 30', slug: 'o3-brightening-day-cream', description: 'Dermatologist-tested daily brightening moisturizer with UVA/UVB protection.', price: 1150.00, discount_price: 920.00, stock_quantity: 18, is_active: true, image_url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80' },
+      { id: '33333333-3333-4333-8333-333333333303', name: 'Botanical Keratin Repair Hair Masque (250g)', slug: 'botanical-keratin-masque', description: 'Deep conditioning salon-grade hair repair treatment for dry and treated hair.', price: 1250.00, discount_price: 999.00, stock_quantity: 15, is_active: true, image_url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80' },
+      { id: '33333333-3333-4333-8333-333333333304', name: 'Pure Rose Water Floral Hydrating Mist (200ml)', slug: 'pure-rose-water-mist', description: 'Steam-distilled Kannauj rose water for refreshing skin tone and makeup setting.', price: 450.00, discount_price: 349.00, stock_quantity: 40, is_active: true, image_url: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=600&q=80' }
     ],
     trainingPackages: [
       {
